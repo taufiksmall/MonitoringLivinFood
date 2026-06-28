@@ -187,24 +187,41 @@ function detectPegawaiColumns(){
   PEGAWAI_COLS.status = statusCol || 'Status';
 }
 
-// --- tentukan level & unit seorang pegawai: Region / Kantor Area (non cabang) / Cabang.
-//     Kode Cabang dijadikan kunci join ke branches.js supaya nama cabang yang
-//     ditampilkan persis sama dengan nama cabang di sheet 'Rekap'. ---
+// --- tentukan level & unit seorang pegawai, berdasarkan kolom F "Segment" (utama)
+//     + kolom H "Kode Cabang" di sheet 'Data Pegawai':
+//     - Segment = "Region"        -> level Region.
+//     - Segment = "Area ...."     -> level tergantung Kode Cabang:
+//         - Kode Cabang kosong / "-"  -> level Area Non Cabang (pegawai kantor area).
+//         - Kode Cabang ada isinya    -> level Cabang, di-join ke branches.js lewat
+//           Kode Cabang supaya nama cabang yang ditampilkan persis sama dengan 'Rekap'.
 function resolvePegawaiUnit(row){
-  const kode = (row[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
-  const segment = (row[PEGAWAI_COLS.segment] || '').toString().trim().toLowerCase();
-  const areaRaw = (row[PEGAWAI_COLS.area] || '').toString().trim();
+  const segment = (row[PEGAWAI_COLS.segment] || '').toString().trim();
+  const segmentLower = segment.toLowerCase();
+  const kodeRaw = (row[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
+  const kode = (kodeRaw === '-' || kodeRaw === '') ? '' : kodeRaw;
 
+  if (segmentLower === 'region' || segmentLower.startsWith('region')){
+    return { level: 'Region', area: null, unit: 'Kantor Region X' };
+  }
+
+  if (segmentLower.startsWith('area')){
+    if (!kode){
+      const rawAreaName = segment.replace(/^area\s*/i, '').trim();
+      const areaName = AREA_ORDER.find(a => a.toLowerCase() === rawAreaName.toLowerCase()) || rawAreaName;
+      return { level: 'Area Non Cabang', area: areaName || null, unit: 'Kantor Area ' + (areaName || '') + ' (Pegawai Non Cabang)' };
+    }
+    const branch = BRANCHES.find(b => b.kode.toString().trim() === kode);
+    if (branch) return { level: 'Cabang', area: branch.area, unit: branch.cabang };
+    return { level: 'Cabang', area: null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
+  }
+
+  // fallback kalau Segment tidak diawali "Region"/"Area" tapi Kode Cabang ada isinya
   if (kode){
     const branch = BRANCHES.find(b => b.kode.toString().trim() === kode);
     if (branch) return { level: 'Cabang', area: branch.area, unit: branch.cabang };
-    return { level: 'Cabang', area: areaRaw || null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
+    return { level: 'Cabang', area: null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
   }
-  if (segment.includes('region')) {
-    return { level: 'Region', area: null, unit: 'Kantor Region X' };
-  }
-  const areaName = areaRaw || (row[PEGAWAI_COLS.segment] || '').toString().trim();
-  return { level: 'Area Non Cabang', area: areaName || null, unit: 'Kantor Area ' + (areaName || '') + ' (Pegawai Non Cabang)' };
+  return { level: 'Lainnya', area: null, unit: segment || 'Tidak diketahui' };
 }
 
 // --- ambil 3 sel di kanan sebuah sel (Transaksi, Pegawai, %) jadi satu objek stats ---
@@ -289,7 +306,7 @@ function populateFilters(){
   const areaSel = document.getElementById('areaSelect');
   if (areaSel.options.length <= 1){
     const optRegion = document.createElement('option');
-    optRegion.value = '__REGION__'; optRegion.textContent = 'Region X (Kantor Pusat/Kanwil)';
+    optRegion.value = '__REGION__'; optRegion.textContent = 'Region';
     areaSel.appendChild(optRegion);
 
     const optNonCabang = document.createElement('option');
@@ -344,7 +361,7 @@ function render(){
 
   if (area === '__REGION__'){
     rows = [findRegionStats()];
-    scopeLabel = "Region X (Kantor Pusat/Kanwil)";
+    scopeLabel = "Region";
     colLabel = "Unit";
     missingMode = { type: 'region' };
   } else if (area === '__NONCABANG__'){
