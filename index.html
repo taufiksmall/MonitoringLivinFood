@@ -633,7 +633,7 @@ function render(){
   const totalPeg = rows.reduce((s,r) => s + r.peg, 0);
   const totalPct = totalPeg ? (totalTrx/totalPeg*100) : 0;
   document.getElementById('cards').innerHTML = `
-    <div class="card"><div class="label">Total Transaksi</div><div class="value">${totalTrx.toLocaleString('id-ID')}</div></div>
+    <div class="card"><div class="label">Total Input Livin Food</div><div class="value">${totalTrx.toLocaleString('id-ID')}</div></div>
     <div class="card"><div class="label">Total Jml Pegawai</div><div class="value">${totalPeg.toLocaleString('id-ID')}</div></div>
     <div class="card"><div class="label">% Partisipasi</div><div class="value">${totalPct.toFixed(0)}%</div></div>
     <div class="card"><div class="label">Jumlah Unit Ditampilkan</div><div class="value">${rows.length}</div></div>
@@ -804,7 +804,7 @@ function buildWaImageElement(context){
       <thead><tr style="background:#eef3f9;">
         <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">#</th>
         <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">${context.colLabel.toUpperCase()}</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">TRANSAKSI</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">INPUT LIVIN FOOD</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">JML PEGAWAI</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
       </tr></thead>
