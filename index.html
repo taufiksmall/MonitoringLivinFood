@@ -165,14 +165,23 @@
     font-weight:800;
     border:1px solid rgba(13,59,120,.08);
   }
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th, td{padding:12px 16px;text-align:left;border-bottom:1px solid #ebf0f5;}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+  th, td{padding:12px 16px;text-align:left;border-bottom:1px solid #ebf0f5;vertical-align:middle;}
   th{color:var(--muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.08em;background:#fcfdff;}
+  #rankingTable th, #rankingTable td{white-space:normal;word-break:break-word;}
+  #rankingTable th:nth-child(1), #rankingTable td:nth-child(1){width:64px;text-align:center;}
+  #rankingTable th:nth-child(2), #rankingTable td:nth-child(2){width:auto;text-align:left;}
+  #rankingTable th:nth-child(3), #rankingTable td:nth-child(3),
+  #rankingTable th:nth-child(4), #rankingTable td:nth-child(4){width:140px;text-align:right;}
+  #rankingTable th:nth-child(5), #rankingTable td:nth-child(5){width:170px;text-align:right;}
+  #missingTable th:nth-child(1), #missingTable td:nth-child(1){width:32%;}
+  #missingTable th:nth-child(2), #missingTable td:nth-child(2){width:38%;}
+  #missingTable th:nth-child(3), #missingTable td:nth-child(3){width:30%;}
   tbody tr{transition:background .18s ease;}
   tbody tr:hover{background:#f8fbff;}
   tr:last-child td{border-bottom:none;}
   tr.total-row td{font-weight:800;background:#f5f8fc;}
-  .pct-bar{display:flex;align-items:center;gap:8px;}
+  .pct-bar{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
   .pct-bar .track{flex:1;height:8px;background:#e7eef6;border-radius:999px;overflow:hidden;min-width:60px;}
   .pct-bar .fill{height:100%;background:linear-gradient(90deg, var(--navy), var(--navy2));border-radius:999px;}
   .ok{color:var(--ok);font-weight:600;}
@@ -207,6 +216,9 @@
   @media (max-width:560px){
     .cards{grid-template-columns:1fr;}
     th, td{padding:11px 12px;}
+    #rankingTable th:nth-child(3), #rankingTable td:nth-child(3),
+    #rankingTable th:nth-child(4), #rankingTable td:nth-child(4){width:112px;}
+    #rankingTable th:nth-child(5), #rankingTable td:nth-child(5){width:140px;}
     section > h2{padding:16px;}
   }
 </style>
@@ -248,6 +260,13 @@
   <section>
     <h2 id="rankingTitle">Ranking Partisipasi <span class="badge" id="rankingBadge">0</span></h2>
     <div class="scroll"><table id="rankingTable">
+      <colgroup>
+        <col style="width:64px">
+        <col>
+        <col style="width:140px">
+        <col style="width:140px">
+        <col style="width:170px">
+      </colgroup>
       <thead><tr><th>#</th><th id="rankingColLabel">Nama</th><th>Transaksi</th><th>Jml Pegawai</th><th>%</th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -259,6 +278,11 @@
   <section>
     <h2>Pegawai Belum Input (Status "Not Yet") <span class="badge" id="missingBadge">0</span></h2>
     <div class="scroll"><table id="missingTable">
+      <colgroup>
+        <col style="width:32%">
+        <col style="width:38%">
+        <col style="width:30%">
+      </colgroup>
       <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -798,38 +822,47 @@ function buildWaImageElement(context){
   wrap.style.position = 'fixed';
   wrap.style.left = '-9999px';
   wrap.style.top = '0';
-  wrap.style.width = '560px';
+  wrap.style.width = '760px';
   wrap.style.fontFamily = 'Arial, Helvetica, sans-serif';
   wrap.style.background = '#ffffff';
   wrap.innerHTML = `
-    <div style="background:#003d79;color:#fff;padding:14px 18px;border-bottom:4px solid #ffcb05;">
-      <div style="font-size:15px;font-weight:bold;">${context.imageTitle}</div>
-      <div style="font-size:11px;color:#cfe0f3;margin-top:2px;">Posisi ${formatWitaTime()} WITA &middot; ${tanggal}</div>
+    <div style="background:#003d79;color:#fff;padding:18px 24px;border-bottom:5px solid #ffcb05;">
+      <div style="font-size:16px;font-weight:bold;line-height:1.25;">${context.imageTitle}</div>
+      <div style="font-size:11px;color:#cfe0f3;margin-top:4px;">Posisi ${formatWitaTime()} WITA &middot; ${tanggal}</div>
     </div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;">
+      <colgroup>
+        <col style="width:52px;">
+        <col style="width:260px;">
+        <col style="width:120px;">
+        <col style="width:120px;">
+        <col style="width:92px;">
+        <col style="width:88px;">
+        <col style="width:88px;">
+      </colgroup>
       <thead><tr style="background:#eef3f9;">
-        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">#</th>
-        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">${context.colLabel.toUpperCase()}</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">INPUT LIVIN FOOD</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">JML PEGAWAI</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">GAP</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">RANK</th>
+        <th style="padding:10px 12px;text-align:center;color:#6b7280;font-size:11px;letter-spacing:.08em;">#</th>
+        <th style="padding:10px 12px;text-align:left;color:#6b7280;font-size:11px;letter-spacing:.08em;">${context.colLabel.toUpperCase()}</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">INPUT LIVIN FOOD</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">JML PEGAWAI</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">GAP</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">%</th>
+        <th style="padding:10px 12px;text-align:center;color:#6b7280;font-size:11px;letter-spacing:.08em;">RANK</th>
       </tr></thead>
       <tbody>
         ${rows.map((r,i) => `
           <tr style="border-bottom:1px solid #e5e7eb;">
-            <td style="padding:8px 12px;">${i+1}</td>
-            <td style="padding:8px 12px;">${r.matchedLabel || r.name}</td>
-            <td style="padding:8px 12px;text-align:right;">${(Number(r.trx) || 0).toLocaleString('id-ID')}</td>
-            <td style="padding:8px 12px;text-align:right;">${(Number(r.peg) || 0).toLocaleString('id-ID')}</td>
-            <td style="padding:8px 12px;text-align:right;">${Math.max(0, (Number(r.peg) || 0) - (Number(r.trx) || 0)).toLocaleString('id-ID')}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${getPctColor(Number(r.pct) || 0)};">${(Number(r.pct) || 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:bold;">${i+1}</td>
+            <td style="padding:12px 12px;text-align:center;vertical-align:middle;">${i+1}</td>
+            <td style="padding:12px 12px;vertical-align:middle;line-height:1.25;">${r.matchedLabel || r.name}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${(Number(r.trx) || 0).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${(Number(r.peg) || 0).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${Math.max(0, (Number(r.peg) || 0) - (Number(r.trx) || 0)).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;font-weight:bold;color:${getPctColor(Number(r.pct) || 0)};">${(Number(r.pct) || 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+            <td style="padding:12px 12px;text-align:center;vertical-align:middle;font-weight:bold;">${i+1}</td>
           </tr>`).join('')}
       </tbody>
     </table>
-    <div style="padding:10px 18px;font-size:10px;color:#6b7280;">Transaction Banking Retail &middot; Dibuat otomatis dari dashboard</div>
+    <div style="padding:12px 24px;font-size:10px;color:#6b7280;">Transaction Banking Retail &middot; Dibuat otomatis dari dashboard</div>
   `;
   document.body.appendChild(wrap);
   return wrap;
