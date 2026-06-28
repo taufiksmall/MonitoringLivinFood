@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Partisipasi Livin' Food - Region X</title>
+<script src="branches.js"></script>
+<style>
+  :root{
+    --navy:#003d79; --navy2:#01579b; --gold:#ffcb05; --bg:#f3f5f8; --card:#ffffff;
+    --text:#1f2937; --muted:#6b7280; --ok:#16a34a; --bad:#dc2626; --border:#e5e7eb;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--navy);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;
+    align-items:center;flex-wrap:wrap;gap:8px;border-bottom:4px solid var(--gold);}
+  header h1{font-size:17px;margin:0;}
+  header p{margin:2px 0 0;font-size:12px;color:#cfe0f3;}
+  #status{font-size:12px;color:#cfe0f3;text-align:right;}
+  main{max-width:1100px;margin:0 auto;padding:20px;}
+  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px;}
+  .filters .f{min-width:170px;}
+  .filters label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  select, button{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;width:100%;}
+  button{background:var(--navy);color:#fff;border:none;cursor:pointer;width:auto;padding:8px 16px;}
+  button:hover{opacity:.9;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .card .label{font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .card .value{font-size:24px;font-weight:700;color:var(--navy);}
+  section{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;overflow:hidden;}
+  section > h2{font-size:14px;margin:0;padding:12px 16px;background:#eef3f9;border-bottom:1px solid var(--border);
+    display:flex;justify-content:space-between;align-items:center;}
+  section > h2 .badge{background:var(--navy);color:#fff;font-size:11px;border-radius:999px;padding:2px 10px;font-weight:normal;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th, td{padding:8px 14px;text-align:left;border-bottom:1px solid var(--border);}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;}
+  tr:last-child td{border-bottom:none;}
+  tr.total-row td{font-weight:700;background:#f7f9fc;}
+  .pct-bar{display:flex;align-items:center;gap:8px;}
+  .pct-bar .track{flex:1;height:6px;background:#e8edf3;border-radius:4px;overflow:hidden;min-width:60px;}
+  .pct-bar .fill{height:100%;background:var(--navy2);}
+  .ok{color:var(--ok);font-weight:600;}
+  .bad{color:var(--bad);font-weight:600;}
+  .empty{padding:20px;text-align:center;color:var(--muted);font-size:13px;}
+  .scroll{max-height:420px;overflow:auto;}
+  footer{text-align:center;font-size:11px;color:var(--muted);padding:20px;}
+  @media (max-width:600px){header{padding:14px 16px;} main{padding:14px;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Dashboard Partisipasi Livin' Food &mdash; Region X (Sulawesi &amp; Maluku)</h1>
+    <p>Transaction Banking Retail &middot; 7 Area &middot; 180 Cabang</p>
+  </div>
+  <div id="status">Memuat data...</div>
+</header>
+
+<main>
+  <div class="filters">
+    <div class="f">
+      <label for="areaSelect">Area</label>
+      <select id="areaSelect">
+        <option value="">Semua Area (Region X)</option>
+      </select>
+    </div>
+    <div class="f">
+      <label for="cabangSelect">Cabang</label>
+      <select id="cabangSelect">
+        <option value="">Semua Cabang</option>
+      </select>
+    </div>
+    <div class="f" style="min-width:auto;">
+      <button id="refreshBtn">Refresh Data</button>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2 id="rankingTitle">Ranking Partisipasi <span class="badge" id="rankingBadge">0</span></h2>
+    <div class="scroll"><table id="rankingTable">
+      <thead><tr><th>#</th><th id="rankingColLabel">Nama</th><th>Transaksi</th><th>Jml Pegawai</th><th>%</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Pegawai Belum Input Link Bukti Screenshot <span class="badge" id="missingBadge">0</span></h2>
+    <div class="scroll"><table id="missingTable">
+      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th><th>No. HP</th><th>Tanggal</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <footer>Data live dari Google Sheets (private) via Apps Script Web App. Terakhir update: <span id="lastUpdated">-</span></footer>
+</main>
+
+<script>
+/* =========================================================================
+   KONFIGURASI
+   Ganti API_URL dengan URL "Web app" hasil deploy Apps Script (Code.gs).
+   Contoh: https://script.google.com/macros/s/XXXXXXXXXXXXXXXX/exec
+========================================================================= */
+const API_URL = "https://script.google.com/macros/s/AKfycbyX3ShYbFMh674bL-YCyEcFyoLoEH_CikCmLXYduIjNiAzjPWF_z-dQg0WTQgBFE7t-tw/exec";
+
+const AREA_ORDER = ["Manado","Palu","Makassar Kartini","Kendari","Pare Pare","Makassar Ratulangi","Maluku"];
+
+let RAW_GRID = [];     // grid 'Rekap'
+let RAW_DATA = [];     // array of objects dari sheet data mentah
+let RAW_HEADER = [];
+let lastPayload = null;
+
+function setStatus(msg){ document.getElementById('status').textContent = msg; }
+
+// --- ambil JSON dari Apps Script, fallback ke JSONP kalau fetch gagal (CORS) ---
+async function loadData(){
+  setStatus("Memuat data...");
+  try{
+    const res = await fetch(API_URL, {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    onData(json);
+  }catch(err){
+    console.warn("fetch gagal, coba JSONP:", err);
+    loadViaJsonp();
+  }
+}
+
+function loadViaJsonp(){
+  const cbName = "__dashCb" + Date.now();
+  window[cbName] = function(json){ onData(json); delete window[cbName]; script.remove(); };
+  const script = document.createElement('script');
+  script.src = API_URL + (API_URL.includes('?') ? '&' : '?') + "callback=" + cbName;
+  script.onerror = function(){ setStatus("Gagal memuat data. Cek API_URL / deployment Apps Script."); };
+  document.body.appendChild(script);
+}
+
+function onData(json){
+  lastPayload = json;
+  RAW_GRID = json.rekap || [];
+  const raw2d = json.raw || [];
+  RAW_HEADER = raw2d.length ? raw2d[0] : [];
+  RAW_DATA = raw2d.slice(1).map(row => {
+    const o = {};
+    RAW_HEADER.forEach((h, i) => o[h] = row[i]);
+    return o;
+  });
+  document.getElementById('lastUpdated').textContent = json.generatedAt ? new Date(json.generatedAt).toLocaleString('id-ID') : '-';
+  setStatus("Data live ✓");
+  populateFilters();
+  render();
+}
+
+// --- cari nama (area/cabang) di grid Rekap, ambil 3 sel di kanannya (Transaksi, Pegawai, %) ---
+function findRowStats(name){
+  const target = (name || "").trim().toLowerCase();
+  for (let r = 0; r < RAW_GRID.length; r++){
+    const row = RAW_GRID[r];
+    for (let c = 0; c < row.length; c++){
+      const cell = row[c];
+      if (typeof cell === 'string' && cell.trim().toLowerCase() === target){
+        const trx = Number(row[c+1]) || 0;
+        const peg = Number(row[c+2]) || 0;
+        let pct = row[c+3];
+        pct = (typeof pct === 'number') ? (pct <= 1 ? pct*100 : pct) : (peg ? (trx/peg*100) : 0);
+        return { name, trx, peg, pct };
+      }
+    }
+  }
+  return { name, trx:0, peg:0, pct:0, notFound:true };
+}
+
+function populateFilters(){
+  const areaSel = document.getElementById('areaSelect');
+  if (areaSel.options.length <= 1){
+    AREA_ORDER.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      areaSel.appendChild(opt);
+    });
+  }
+  updateCabangOptions();
+}
+
+function updateCabangOptions(){
+  const area = document.getElementById('areaSelect').value;
+  const cabSel = document.getElementById('cabangSelect');
+  cabSel.innerHTML = '<option value="">Semua Cabang</option>';
+  const list = area ? BRANCHES.filter(b => b.area === area) : BRANCHES;
+  list.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.cabang; opt.textContent = b.cabang;
+    cabSel.appendChild(opt);
+  });
+}
+
+function pctBadge(pct){
+  return pct > 0
+    ? `<span class="ok">✅ ${pct.toFixed(0)}%</span>`
+    : `<span class="bad">❌ ${pct.toFixed(0)}%</span>`;
+}
+
+function pctBar(pct){
+  const clamped = Math.max(0, Math.min(100, pct));
+  return `<div class="pct-bar"><div class="track"><div class="fill" style="width:${clamped}%"></div></div>${pctBadge(pct)}</div>`;
+}
+
+function render(){
+  const area = document.getElementById('areaSelect').value;
+  const cabang = document.getElementById('cabangSelect').value;
+
+  let rows = [];
+  let scopeLabel = "";
+  let colLabel = "Nama";
+
+  if (cabang){
+    rows = [findRowStats(cabang)];
+    scopeLabel = cabang + " (" + area + ")";
+    colLabel = "Cabang";
+  } else if (area){
+    rows = BRANCHES.filter(b => b.area === area).map(b => findRowStats(b.cabang));
+    scopeLabel = "Cabang - Area " + area;
+    colLabel = "Cabang";
+  } else {
+    rows = AREA_ORDER.map(a => findRowStats(a));
+    scopeLabel = "Per Area (Region X)";
+    colLabel = "Area";
+  }
+
+  rows.sort((a,b) => b.pct - a.pct);
+
+  // summary cards (total dari rows yang sedang ditampilkan)
+  const totalTrx = rows.reduce((s,r) => s + r.trx, 0);
+  const totalPeg = rows.reduce((s,r) => s + r.peg, 0);
+  const totalPct = totalPeg ? (totalTrx/totalPeg*100) : 0;
+  document.getElementById('cards').innerHTML = `
+    <div class="card"><div class="label">Total Transaksi</div><div class="value">${totalTrx.toLocaleString('id-ID')}</div></div>
+    <div class="card"><div class="label">Total Jml Pegawai</div><div class="value">${totalPeg.toLocaleString('id-ID')}</div></div>
+    <div class="card"><div class="label">% Partisipasi</div><div class="value">${totalPct.toFixed(0)}%</div></div>
+    <div class="card"><div class="label">Jumlah Unit Ditampilkan</div><div class="value">${rows.length}</div></div>
+  `;
+
+  document.getElementById('rankingTitle').firstChild.textContent = "Ranking Partisipasi — " + scopeLabel + " ";
+  document.getElementById('rankingBadge').textContent = rows.length;
+  document.getElementById('rankingColLabel').textContent = colLabel;
+
+  const tbody = document.querySelector('#rankingTable tbody');
+  if (!rows.length){
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada data.</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map((r,i) => `
+      <tr>
+        <td>${i+1}</td>
+        <td>${r.name}${r.notFound ? ' <span class="bad" title="Nama tidak ditemukan di sheet Rekap">(?)</span>' : ''}</td>
+        <td>${r.trx.toLocaleString('id-ID')}</td>
+        <td>${r.peg.toLocaleString('id-ID')}</td>
+        <td>${pctBar(r.pct)}</td>
+      </tr>
+    `).join('');
+  }
+
+  renderMissingLink(area, cabang);
+}
+
+function renderMissingLink(area, cabang){
+  const colCabang = RAW_HEADER.find(h => /cabang/i.test(h)) || 'Cabang';
+  const colArea = RAW_HEADER.find(h => /area|departemen/i.test(h)) || 'Area/Departemen';
+  const colNama = RAW_HEADER.find(h => /nama/i.test(h)) || 'Nama Pegawai';
+  const colLink = RAW_HEADER.find(h => /link/i.test(h)) || 'Link Bukti Screenshot';
+  const colUnit = RAW_HEADER.find(h => /^unit$/i.test(h)) || 'Unit';
+  const colHp = RAW_HEADER.find(h => /hp|telepon|phone/i.test(h)) || 'No. HP';
+  const colTgl = RAW_HEADER.find(h => /tanggal/i.test(h)) || 'Tanggal Transaksi';
+
+  let rows = RAW_DATA.filter(r => {
+    const nama = (r[colNama] || '').toString().trim();
+    const link = (r[colLink] || '').toString().trim();
+    if (!nama || link) return false;
+    if (area && (r[colArea] || '').toString().trim() !== area) return false;
+    if (cabang && (r[colCabang] || '').toString().trim() !== cabang) return false;
+    return true;
+  });
+
+  document.getElementById('missingBadge').textContent = rows.length;
+  const tbody = document.querySelector('#missingTable tbody');
+  if (!rows.length){
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada (semua sudah input link) ✅</td></tr>`;
+  } else {
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r[colNama] || '-'}</td>
+        <td>${r[colCabang] || r[colUnit] || '-'}</td>
+        <td>${r[colArea] || '-'}</td>
+        <td>${r[colHp] || '-'}</td>
+        <td>${r[colTgl] || '-'}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+document.getElementById('areaSelect').addEventListener('change', () => { updateCabangOptions(); render(); });
+document.getElementById('cabangSelect').addEventListener('change', render);
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+
+loadData();
+</script>
+</body>
+</html>
