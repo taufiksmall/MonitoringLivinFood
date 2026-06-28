@@ -207,23 +207,55 @@ function resolvePegawaiUnit(row){
   return { level: 'Area Non Cabang', area: areaName || null, unit: 'Kantor Area ' + (areaName || '') + ' (Pegawai Non Cabang)' };
 }
 
-// --- cari nama (area/cabang) di grid Rekap, ambil 3 sel di kanannya (Transaksi, Pegawai, %) ---
-function findRowStats(name){
+// --- ambil 3 sel di kanan sebuah sel (Transaksi, Pegawai, %) jadi satu objek stats ---
+function readStatsAt(row, c, label){
+  const trx = Number(row[c+1]) || 0;
+  const peg = Number(row[c+2]) || 0;
+  let pct = row[c+3];
+  pct = (typeof pct === 'number') ? (pct <= 1 ? pct*100 : pct) : (peg ? (trx/peg*100) : 0);
+  return { name: label, trx, peg, pct };
+}
+
+// --- cari nama (area/cabang) di grid Rekap, ambil 3 sel di kanannya (Transaksi, Pegawai, %).
+//     opts.allowPrefix: kalau exact match tidak ketemu, terima juga sel yang DIAWALI nama
+//     target + spasi (mis. label area "Kendari Mesjid Agung" tetap ketemu untuk target "Kendari").
+//     Dipakai khusus level Area karena beberapa label area di sheet Rekap ada tambahan
+//     nama cabang utama di belakangnya. ---
+function findRowStats(name, opts){
+  opts = opts || {};
   const target = (name || "").trim().toLowerCase();
+  let fallback = null;
   for (let r = 0; r < RAW_GRID.length; r++){
     const row = RAW_GRID[r];
     for (let c = 0; c < row.length; c++){
       const cell = row[c];
-      if (typeof cell === 'string' && cell.trim().toLowerCase() === target){
-        const trx = Number(row[c+1]) || 0;
-        const peg = Number(row[c+2]) || 0;
-        let pct = row[c+3];
-        pct = (typeof pct === 'number') ? (pct <= 1 ? pct*100 : pct) : (peg ? (trx/peg*100) : 0);
-        return { name, trx, peg, pct };
+      if (typeof cell !== 'string') continue;
+      const cellNorm = cell.trim().toLowerCase();
+      if (cellNorm === target) return readStatsAt(row, c, name);
+      if (opts.allowPrefix && !fallback && cellNorm.startsWith(target + ' ')){
+        fallback = readStatsAt(row, c, name);
       }
     }
   }
-  return { name, trx:0, peg:0, pct:0, notFound:true };
+  return fallback || { name, trx:0, peg:0, pct:0, notFound:true };
+}
+
+// --- cari baris cabang di grid Rekap lewat Kode Cabang, bukan lewat nama.
+//     Di sheet Rekap, baris detail cabang (kolom A) formatnya "{kode} - {nama cabang}",
+//     jadi pencarian lewat nama persis (findRowStats) tidak akan pernah ketemu.
+//     Kode Cabang unik per cabang jadi jauh lebih aman dipakai sebagai kunci. ---
+function findRowByKode(kode, label){
+  const prefix = (kode || "").toString().trim().toLowerCase() + ' -';
+  if (prefix !== ' -'){
+    for (let r = 0; r < RAW_GRID.length; r++){
+      const cell = RAW_GRID[r][0];
+      if (typeof cell === 'string' && cell.trim().toLowerCase().startsWith(prefix)){
+        return readStatsAt(RAW_GRID[r], 0, label || kode);
+      }
+    }
+  }
+  // fallback: kalau sheet Rekap suatu saat tidak pakai prefix kode, coba match nama biasa
+  return findRowStats(label || kode);
 }
 
 function populateFilters(){
@@ -245,7 +277,7 @@ function updateCabangOptions(){
   const list = area ? BRANCHES.filter(b => b.area === area) : BRANCHES;
   list.forEach(b => {
     const opt = document.createElement('option');
-    opt.value = b.cabang; opt.textContent = b.cabang;
+    opt.value = b.kode; opt.textContent = b.cabang;
     cabSel.appendChild(opt);
   });
 }
@@ -263,22 +295,24 @@ function pctBar(pct){
 
 function render(){
   const area = document.getElementById('areaSelect').value;
-  const cabang = document.getElementById('cabangSelect').value;
+  const cabangKode = document.getElementById('cabangSelect').value;
+  const cabangBranch = cabangKode ? BRANCHES.find(b => b.kode === cabangKode) : null;
+  const cabangName = cabangBranch ? cabangBranch.cabang : cabangKode;
 
   let rows = [];
   let scopeLabel = "";
   let colLabel = "Nama";
 
-  if (cabang){
-    rows = [findRowStats(cabang)];
-    scopeLabel = cabang + " (" + area + ")";
+  if (cabangKode){
+    rows = [findRowByKode(cabangKode, cabangName)];
+    scopeLabel = cabangName + " (" + area + ")";
     colLabel = "Cabang";
   } else if (area){
-    rows = BRANCHES.filter(b => b.area === area).map(b => findRowStats(b.cabang));
+    rows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
     scopeLabel = "Cabang - Area " + area;
     colLabel = "Cabang";
   } else {
-    rows = AREA_ORDER.map(a => findRowStats(a));
+    rows = AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true}));
     scopeLabel = "Per Area (Region X)";
     colLabel = "Area";
   }
@@ -315,10 +349,10 @@ function render(){
     `).join('');
   }
 
-  renderMissingLink(area, cabang);
+  renderMissingLink(area, cabangName);
 }
 
-function renderMissingLink(area, cabang){
+function renderMissingLink(area, cabangName){
   let rows = PEGAWAI_ROWS
     .map(r => {
       const nama = (r[PEGAWAI_COLS.nama] || '').toString().trim();
@@ -336,9 +370,9 @@ function renderMissingLink(area, cabang){
     })
     .filter(Boolean)
     .filter(r => {
-      if (cabang) return r.unit === cabang;          // filter cabang spesifik
-      if (area) return r.area === area;              // cabang area ini + Kantor Area-nya
-      return true;                                    // semua (Region + Area + Cabang)
+      if (cabangName) return r.unit === cabangName;   // filter cabang spesifik
+      if (area) return r.area === area;               // cabang area ini + Kantor Area-nya
+      return true;                                     // semua (Region + Area + Cabang)
     });
 
   document.getElementById('missingBadge').textContent = rows.length;
