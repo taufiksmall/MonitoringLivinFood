@@ -4,53 +4,235 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Partisipasi Livin' Food - Region X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="branches.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
-    --navy:#003d79; --navy2:#01579b; --gold:#ffcb05; --bg:#f3f5f8; --card:#ffffff;
-    --text:#1f2937; --muted:#6b7280; --ok:#16a34a; --bad:#dc2626; --border:#e5e7eb;
+    --navy:#0d3b78; --navy2:#2c6cb8; --navy3:#0f2747; --gold:#ffcb05; --bg:#eef3f8; --card:#ffffff;
+    --text:#122033; --muted:#66758a; --ok:#14804a; --bad:#c93b32; --border:#dce4ee; --soft:#f7fafd;
+    --shadow:0 18px 45px rgba(15,39,71,.08); --shadow-sm:0 10px 24px rgba(15,39,71,.06);
+    --radius:22px; --radius-sm:16px;
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
-  header{background:var(--navy);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;
-    align-items:center;flex-wrap:wrap;gap:8px;border-bottom:4px solid var(--gold);}
-  header h1{font-size:17px;margin:0;}
-  header p{margin:2px 0 0;font-size:12px;color:#cfe0f3;}
-  #status{font-size:12px;color:#cfe0f3;text-align:right;}
-  main{max-width:1100px;margin:0 auto;padding:20px;}
-  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px;}
-  .filters .f{min-width:170px;}
-  .filters label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
-  select, button{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;width:100%;}
-  button{background:var(--navy);color:#fff;border:none;cursor:pointer;width:auto;padding:8px 16px;}
-  button:hover{opacity:.9;}
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
-  .card .label{font-size:12px;color:var(--muted);margin-bottom:4px;}
-  .card .value{font-size:24px;font-weight:700;color:var(--navy);}
-  section{background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:20px;overflow:hidden;}
-  section > h2{font-size:14px;margin:0;padding:12px 16px;background:#eef3f9;border-bottom:1px solid var(--border);
-    display:flex;justify-content:space-between;align-items:center;}
-  section > h2 .badge{background:var(--navy);color:#fff;font-size:11px;border-radius:999px;padding:2px 10px;font-weight:normal;}
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th, td{padding:8px 14px;text-align:left;border-bottom:1px solid var(--border);}
-  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:"Plus Jakarta Sans",system-ui,sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(255,203,5,.16), transparent 24%),
+      radial-gradient(circle at top right, rgba(44,108,184,.18), transparent 28%),
+      linear-gradient(180deg, #f6f9fc 0%, var(--bg) 42%, #edf2f7 100%);
+    color:var(--text);
+  }
+  .page-shell{min-height:100vh;padding:28px 18px 40px;}
+  header{
+    max-width:1180px;
+    margin:0 auto 22px;
+    background:linear-gradient(135deg, var(--navy3) 0%, var(--navy) 58%, #1d5da8 100%);
+    color:#fff;
+    padding:24px 28px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:16px;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:28px;
+    box-shadow:0 28px 60px rgba(13,59,120,.24);
+    position:relative;
+    overflow:hidden;
+  }
+  header::after{
+    content:"";
+    position:absolute;
+    inset:auto -40px -60px auto;
+    width:220px;
+    height:220px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,.24), transparent 68%);
+    pointer-events:none;
+  }
+  header h1{font-size:clamp(22px,3vw,30px);line-height:1.15;margin:0 0 8px;font-weight:800;max-width:760px;}
+  header p{margin:0;font-size:13px;color:rgba(227,237,249,.86);letter-spacing:.02em;}
+  #status{
+    font-size:12px;
+    color:#eff6ff;
+    text-align:right;
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:999px;
+    padding:10px 14px;
+    backdrop-filter:blur(10px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  main{max-width:1180px;margin:0 auto;}
+  .filters{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    align-items:end;
+    margin-bottom:22px;
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(220,228,238,.9);
+    backdrop-filter:blur(14px);
+    border-radius:var(--radius);
+    padding:18px;
+    box-shadow:var(--shadow-sm);
+  }
+  .filters .f{min-width:180px;flex:1;}
+  .filters .f.action{min-width:auto;flex:0 0 auto;}
+  .filters label{display:block;font-size:12px;color:var(--muted);margin:0 0 8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+  select, button{
+    min-height:46px;
+    padding:11px 14px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    font-size:14px;
+    background:#fff;
+    width:100%;
+    font-family:inherit;
+    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, background .2s ease;
+  }
+  select{
+    color:var(--text);
+    box-shadow:inset 0 1px 2px rgba(13,59,120,.04);
+  }
+  select:focus, button:focus{
+    outline:none;
+    border-color:rgba(44,108,184,.6);
+    box-shadow:0 0 0 4px rgba(44,108,184,.12);
+  }
+  button{
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
+    color:#fff;
+    border:none;
+    cursor:pointer;
+    width:auto;
+    padding:11px 18px;
+    font-weight:700;
+    box-shadow:0 12px 24px rgba(13,59,120,.2);
+  }
+  button:hover{transform:translateY(-1px);filter:saturate(1.03);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px;}
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,250,253,.98));
+    border:1px solid rgba(220,228,238,.92);
+    border-radius:var(--radius-sm);
+    padding:18px 18px 16px;
+    box-shadow:var(--shadow-sm);
+    position:relative;
+    overflow:hidden;
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    inset:0 auto auto 0;
+    width:100%;
+    height:4px;
+    background:linear-gradient(90deg, var(--gold), var(--navy2));
+  }
+  .card .label{font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+  .card .value{font-size:32px;font-weight:800;color:var(--navy3);line-height:1;}
+  section{
+    background:rgba(255,255,255,.92);
+    border:1px solid rgba(220,228,238,.92);
+    border-radius:24px;
+    margin-bottom:22px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  section > h2{
+    font-size:15px;
+    margin:0;
+    padding:18px 20px;
+    background:linear-gradient(180deg, #fbfdff, #f3f7fb);
+    border-bottom:1px solid var(--border);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    color:var(--navy3);
+  }
+  section > h2 .badge{
+    background:rgba(13,59,120,.08);
+    color:var(--navy);
+    font-size:11px;
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:800;
+    border:1px solid rgba(13,59,120,.08);
+  }
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+  th, td{padding:12px 16px;text-align:left;border-bottom:1px solid #ebf0f5;vertical-align:middle;}
+  th{color:var(--muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.08em;background:#fcfdff;}
+  #rankingTable th, #rankingTable td{white-space:normal;word-break:normal;overflow-wrap:break-word;}
+  #rankingTable th:nth-child(1), #rankingTable td:nth-child(1){width:64px;text-align:center;}
+  #rankingTable th:nth-child(2), #rankingTable td:nth-child(2){width:auto;text-align:left;}
+  #rankingTable th:nth-child(3), #rankingTable td:nth-child(3),
+  #rankingTable th:nth-child(4), #rankingTable td:nth-child(4){width:140px;text-align:right;}
+  #rankingTable th:nth-child(5), #rankingTable td:nth-child(5){width:170px;text-align:right;}
+  #missingTable th:nth-child(1), #missingTable td:nth-child(1){width:32%;}
+  #missingTable th:nth-child(2), #missingTable td:nth-child(2){width:38%;}
+  #missingTable th:nth-child(3), #missingTable td:nth-child(3){width:30%;}
+  tbody tr{transition:background .18s ease;}
+  tbody tr:hover{background:#f8fbff;}
   tr:last-child td{border-bottom:none;}
-  tr.total-row td{font-weight:700;background:#f7f9fc;}
-  .pct-bar{display:flex;align-items:center;gap:8px;}
-  .pct-bar .track{flex:1;height:6px;background:#e8edf3;border-radius:4px;overflow:hidden;min-width:60px;}
-  .pct-bar .fill{height:100%;background:var(--navy2);}
+  tr.total-row td{font-weight:800;background:#f5f8fc;}
+  .pct-bar{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
+  .pct-bar .track{flex:1;height:8px;background:#e7eef6;border-radius:999px;overflow:hidden;min-width:60px;}
+  .pct-bar .fill{height:100%;background:linear-gradient(90deg, var(--navy), var(--navy2));border-radius:999px;}
   .ok{color:var(--ok);font-weight:600;}
   .bad{color:var(--bad);font-weight:600;}
-  .empty{padding:20px;text-align:center;color:var(--muted);font-size:13px;}
-  .scroll{max-height:420px;overflow:auto;}
-  footer{text-align:center;font-size:11px;color:var(--muted);padding:20px;}
-  @media (max-width:600px){header{padding:14px 16px;} main{padding:14px;}}
+  .empty{padding:28px 20px;text-align:center;color:var(--muted);font-size:13px;}
+  .scroll{max-height:420px;overflow:auto;scrollbar-width:thin;scrollbar-color:#c8d4e2 transparent;}
+  .scroll::-webkit-scrollbar{height:10px;width:10px;}
+  .scroll::-webkit-scrollbar-thumb{background:#c8d4e2;border-radius:999px;border:2px solid transparent;background-clip:content-box;}
+  .section-actions{padding:14px 18px;border-top:1px solid var(--border);text-align:right;background:#fbfdff;}
+  .alert{
+    display:none;
+    background:linear-gradient(180deg, #fff7f6, #fff1f0);
+    border:1px solid rgba(201,59,50,.24);
+    color:#a33029;
+    border-radius:18px;
+    padding:14px 16px;
+    margin-bottom:18px;
+    font-size:13px;
+    font-weight:600;
+    box-shadow:var(--shadow-sm);
+  }
+  footer{text-align:center;font-size:12px;color:var(--muted);padding:8px 6px 0;}
+  @media (max-width:720px){
+    .page-shell{padding:14px 12px 28px;}
+    header{padding:20px 18px;border-radius:24px;}
+    #status{text-align:left;}
+    .filters{padding:14px;}
+    .filters .f,.filters .f.action{min-width:100%;flex:1 1 100%;}
+    button{width:100%;}
+    .cards{grid-template-columns:1fr 1fr;}
+  }
+  @media (max-width:560px){
+    .cards{grid-template-columns:1fr;}
+    th, td{padding:11px 12px;}
+    .scroll{overflow-x:auto;overflow-y:auto;}
+    #rankingTable{min-width:720px;}
+    #rankingTable th, #rankingTable td{white-space:nowrap;word-break:normal;overflow-wrap:normal;}
+    #rankingTable th:nth-child(1), #rankingTable td:nth-child(1){width:56px;}
+    #rankingTable th:nth-child(2), #rankingTable td:nth-child(2){width:220px;white-space:normal;line-height:1.3;}
+    #rankingTable th:nth-child(3), #rankingTable td:nth-child(3),
+    #rankingTable th:nth-child(4), #rankingTable td:nth-child(4){width:112px;}
+    #rankingTable th:nth-child(5), #rankingTable td:nth-child(5){width:220px;}
+    .pct-bar{min-width:180px;}
+    .pct-bar .track{min-width:92px;}
+    section > h2{padding:16px;}
+  }
 </style>
 </head>
 <body>
 
+<div class="page-shell">
 <header>
   <div>
     <h1>Dashboard Partisipasi Livin' Food &mdash; Region X (Sulawesi &amp; Maluku)</h1>
@@ -60,8 +242,7 @@
 </header>
 
 <main>
-  <div id="pegawaiWarning" style="display:none;background:#fef2f2;border:1px solid var(--bad);color:var(--bad);
-    border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:600;"></div>
+  <div id="pegawaiWarning" class="alert"></div>
 
   <div class="filters">
     <div class="f">
@@ -76,7 +257,7 @@
         <option value="">Semua Cabang</option>
       </select>
     </div>
-    <div class="f" style="min-width:auto;">
+    <div class="f action">
       <button id="refreshBtn">Refresh Data</button>
     </div>
   </div>
@@ -86,17 +267,29 @@
   <section>
     <h2 id="rankingTitle">Ranking Partisipasi <span class="badge" id="rankingBadge">0</span></h2>
     <div class="scroll"><table id="rankingTable">
+      <colgroup>
+        <col style="width:64px">
+        <col>
+        <col style="width:140px">
+        <col style="width:140px">
+        <col style="width:170px">
+      </colgroup>
       <thead><tr><th>#</th><th id="rankingColLabel">Nama</th><th>Transaksi</th><th>Jml Pegawai</th><th>%</th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <div style="padding:10px 16px;border-top:1px solid var(--border);text-align:right;">
-      <button id="waShareBtn" type="button">📤 Kirim ke WhatsApp (Ranking per Area)</button>
+    <div class="section-actions">
+      <button id="waShareBtn" type="button">📤 Kirim ke WhatsApp</button>
     </div>
   </section>
 
   <section>
     <h2>Pegawai Belum Input (Status "Not Yet") <span class="badge" id="missingBadge">0</span></h2>
     <div class="scroll"><table id="missingTable">
+      <colgroup>
+        <col style="width:32%">
+        <col style="width:38%">
+        <col style="width:30%">
+      </colgroup>
       <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th></tr></thead>
       <tbody></tbody>
     </table></div>
@@ -104,6 +297,7 @@
 
   <footer>Data live dari Google Sheets (private) via Apps Script Web App. Terakhir update: <span id="lastUpdated">-</span></footer>
 </main>
+</div>
 
 <script>
 /* =========================================================================
@@ -559,10 +753,13 @@ function renderMissingLink(mode){
 }
 
 /* =========================================================================
-   KIRIM RANKING PER AREA KE WHATSAPP (gambar + wording otomatis)
-   Selalu pakai breakdown per-Area (AREA_ORDER), independen dari filter yang
-   sedang aktif di dropdown — karena wording-nya memang spesifik "% partisipasi
-   tiap Area", bukan tergantung tampilan ranking saat ini.
+   KIRIM RANKING SESUAI FILTER AKTIF KE WHATSAPP
+   Mengikuti konteks dropdown yang sedang dipilih:
+   - default                 -> per Area (Region X)
+   - pilih Area              -> per Cabang di Area tsb
+   - pilih Cabang            -> detail Cabang tsb
+   - pilih Unit Region X     -> per Unit Kanwil
+   - pilih Kantor Area Non.. -> per Kantor Area Non Cabang
 ========================================================================= */
 function formatWitaTime(){
   const parts = new Intl.DateTimeFormat('id-ID', {
@@ -573,21 +770,75 @@ function formatWitaTime(){
   return hh + '.' + mm;
 }
 
-function getAreaRankingRows(){
-  return AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true})).sort((a,b) => b.pct - a.pct);
+function getShareContext(){
+  const area = document.getElementById('areaSelect').value;
+  const cabangKode = document.getElementById('cabangSelect').value;
+  const cabangBranch = cabangKode ? BRANCHES.find(b => b.kode === cabangKode) : null;
+  const cabangName = cabangBranch ? cabangBranch.cabang : cabangKode;
+
+  let rows = [];
+  let imageTitle = "Partisipasi Livin' Food - Region X";
+  let colLabel = "Area";
+  let introLine = "Berikut % partisipasi tiap Area, diurutkan dari tertinggi ke terendah :";
+  let fileSlug = "partisipasi-region-x";
+
+  if (area === '__REGION__'){
+    rows = findUnitRegionRows();
+    imageTitle = "Partisipasi Unit Region X (Kanwil)";
+    colLabel = "Unit";
+    introLine = "Berikut % partisipasi tiap Unit Kantor Region X (Kanwil), diurutkan dari tertinggi ke terendah :";
+    fileSlug = "partisipasi-unit-region-x";
+  } else if (area === '__NONCABANG__'){
+    rows = AREA_ORDER.map(a => findKantorAreaStats(a));
+    imageTitle = "Partisipasi Kantor Area Non Cabang";
+    colLabel = "Kantor Area";
+    introLine = "Berikut % partisipasi tiap Kantor Area Non Cabang, diurutkan dari tertinggi ke terendah :";
+    fileSlug = "partisipasi-kantor-area-non-cabang";
+  } else if (cabangKode){
+    rows = [findRowByKode(cabangKode, cabangName)];
+    imageTitle = `Partisipasi Cabang ${cabangName}`;
+    colLabel = "Cabang";
+    introLine = `Berikut % partisipasi Cabang ${cabangName}${area ? ' - Area ' + area : ''} :`;
+    fileSlug = sanitizeFilePart(`partisipasi-${cabangName}`);
+  } else if (area){
+    rows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
+    imageTitle = `Partisipasi Area ${area}`;
+    colLabel = "Cabang";
+    introLine = `Berikut % partisipasi tiap Cabang Area ${area}, diurutkan dari tertinggi ke terendah :`;
+    fileSlug = sanitizeFilePart(`partisipasi-area-${area}`);
+  } else {
+    rows = AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true}));
+  }
+
+  rows.sort((a,b) => b.pct - a.pct);
+  return { rows, imageTitle, colLabel, introLine, fileSlug };
 }
 
-function buildWaTextFromRows(rows){
+function sanitizeFilePart(s){
+  return (s || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function buildWaText(context){
+  const rows = context.rows;
   const lines = rows.map(r => `✅ ${r.matchedLabel || r.name} - ${Math.round(r.pct)}%`);
   return 'Semangat Pagi,\n' +
     'Yth. Bapak/Ibu\n' +
-    'Region X - Posisi ' + formatWitaTime() + ' WITA\n' +
-    'Berikut % partisipasi tiap Area, diurutkan dari tertinggi ke terendah :\n' +
-    lines.join('\n') + '\n' +
+    'Region X - Posisi ' + formatWitaTime() + ' WITA\n\n' +
+    context.introLine + '\n' +
+    lines.join('\n') + '\n\n' +
+    'Dimohon jika telah pesan di Livin Food agar meninput link pelaporan berikut :\n' +
+    'https://bit.ly/R10-LivinFood-Partisipation\n\n' +
     'Demikian kami sampaikan, terimakasih. 🙏';
 }
 
-function buildWaImageElement(rows){
+function getPctColor(pct){
+  if (pct >= 100) return '#16a34a';
+  if (pct >= 95.6) return '#ca8a04';
+  return '#dc2626';
+}
+
+function buildWaImageElement(context){
+  const rows = context.rows;
   const tanggal = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Makassar', day: '2-digit', month: 'long', year: 'numeric'
   }).format(new Date());
@@ -595,30 +846,47 @@ function buildWaImageElement(rows){
   wrap.style.position = 'fixed';
   wrap.style.left = '-9999px';
   wrap.style.top = '0';
-  wrap.style.width = '420px';
+  wrap.style.width = '860px';
   wrap.style.fontFamily = 'Arial, Helvetica, sans-serif';
   wrap.style.background = '#ffffff';
   wrap.innerHTML = `
-    <div style="background:#003d79;color:#fff;padding:14px 18px;border-bottom:4px solid #ffcb05;">
-      <div style="font-size:15px;font-weight:bold;">Partisipasi Livin' Food &mdash; Region X</div>
-      <div style="font-size:11px;color:#cfe0f3;margin-top:2px;">Posisi ${formatWitaTime()} WITA &middot; ${tanggal}</div>
+    <div style="background:#003d79;color:#fff;padding:18px 24px;border-bottom:5px solid #ffcb05;">
+      <div style="font-size:16px;font-weight:bold;line-height:1.25;">${context.imageTitle}</div>
+      <div style="font-size:11px;color:#cfe0f3;margin-top:4px;">Posisi ${formatWitaTime()} WITA &middot; ${tanggal}</div>
     </div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;">
+      <colgroup>
+        <col style="width:52px;">
+        <col style="width:320px;">
+        <col style="width:128px;">
+        <col style="width:128px;">
+        <col style="width:96px;">
+        <col style="width:96px;">
+        <col style="width:96px;">
+      </colgroup>
       <thead><tr style="background:#eef3f9;">
-        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">#</th>
-        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">AREA</th>
-        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
+        <th style="padding:10px 12px;text-align:center;color:#6b7280;font-size:11px;letter-spacing:.08em;">#</th>
+        <th style="padding:10px 12px;text-align:left;color:#6b7280;font-size:11px;letter-spacing:.08em;">${context.colLabel.toUpperCase()}</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">INPUT LIVIN FOOD</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">JML PEGAWAI</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">GAP</th>
+        <th style="padding:10px 12px;text-align:right;color:#6b7280;font-size:11px;letter-spacing:.08em;">%</th>
+        <th style="padding:10px 12px;text-align:center;color:#6b7280;font-size:11px;letter-spacing:.08em;">RANK</th>
       </tr></thead>
       <tbody>
         ${rows.map((r,i) => `
           <tr style="border-bottom:1px solid #e5e7eb;">
-            <td style="padding:8px 12px;">${i+1}</td>
-            <td style="padding:8px 12px;">${r.matchedLabel || r.name}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${r.pct>0?'#16a34a':'#dc2626'};">${Math.round(r.pct)}%</td>
+            <td style="padding:12px 12px;text-align:center;vertical-align:middle;">${i+1}</td>
+            <td style="padding:12px 12px;vertical-align:middle;line-height:1.25;">${r.matchedLabel || r.name}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${(Number(r.trx) || 0).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${(Number(r.peg) || 0).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;">${Math.max(0, (Number(r.peg) || 0) - (Number(r.trx) || 0)).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 12px;text-align:right;vertical-align:middle;font-weight:bold;color:${getPctColor(Number(r.pct) || 0)};">${(Number(r.pct) || 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+            <td style="padding:12px 12px;text-align:center;vertical-align:middle;font-weight:bold;">${i+1}</td>
           </tr>`).join('')}
       </tbody>
     </table>
-    <div style="padding:10px 18px;font-size:10px;color:#6b7280;">Transaction Banking Retail &middot; Dibuat otomatis dari dashboard</div>
+    <div style="padding:12px 24px;font-size:10px;color:#6b7280;">Transaction Banking Retail &middot; Dibuat otomatis dari dashboard</div>
   `;
   document.body.appendChild(wrap);
   return wrap;
@@ -631,23 +899,23 @@ async function shareToWhatsapp(){
   btn.textContent = 'Memproses...';
   let el = null;
   try{
-    const rows = getAreaRankingRows();
-    const text = buildWaTextFromRows(rows);
-    el = buildWaImageElement(rows);
+    const context = getShareContext();
+    const text = buildWaText(context);
+    el = buildWaImageElement(context);
     const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    const file = new File([blob], 'partisipasi-region-x.png', { type: 'image/png' });
+    const file = new File([blob], (context.fileSlug || 'partisipasi-dashboard') + '.png', { type: 'image/png' });
 
     if (navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({ files: [file], text, title: 'Partisipasi Livin\' Food - Region X' });
+      await navigator.share({ files: [file], text, title: context.imageTitle });
     } else {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = 'partisipasi-region-x.png';
+      a.href = url; a.download = file.name;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
-      alert('Gambar ranking sudah didownload ke device kamu.\nTab WhatsApp sudah dibuka dengan teks wording otomatis — lampirkan gambar yang baru didownload secara manual ke chat WhatsApp.');
+      alert('Gambar partisipasi sudah didownload ke device kamu.\nTab WhatsApp sudah dibuka dengan teks wording otomatis — lampirkan gambar yang baru didownload secara manual ke chat WhatsApp.');
     }
   }catch(err){
     console.error('Gagal membuat/berbagi gambar WA:', err);
