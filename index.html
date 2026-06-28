@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Partisipasi Livin' Food - Region X</title>
 <script src="branches.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --navy:#003d79; --navy2:#01579b; --gold:#ffcb05; --bg:#f3f5f8; --card:#ffffff;
@@ -88,12 +89,15 @@
       <thead><tr><th>#</th><th id="rankingColLabel">Nama</th><th>Transaksi</th><th>Jml Pegawai</th><th>%</th></tr></thead>
       <tbody></tbody>
     </table></div>
+    <div style="padding:10px 16px;border-top:1px solid var(--border);text-align:right;">
+      <button id="waShareBtn" type="button">📤 Kirim ke WhatsApp (Ranking per Area)</button>
+    </div>
   </section>
 
   <section>
     <h2>Pegawai Belum Input (Status "Not Yet") <span class="badge" id="missingBadge">0</span></h2>
     <div class="scroll"><table id="missingTable">
-      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th><th>No. HP</th><th>Jabatan</th></tr></thead>
+      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
@@ -110,6 +114,22 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxFr2GqxZe0N3thy0zg0ymMRRmQmY8NMkoErrGHhVI_eqQ8rLkuTw0QuxloTP1wLa9Plg/exec";
 
 const AREA_ORDER = ["Manado","Palu","Makassar Kartini","Kendari","Pare Pare","Makassar Ratulangi","Maluku"];
+
+// Nilai Segment di sheet 'Data Pegawai' untuk pegawai Area ditulis ALL CAPS dan
+// beberapa beda dari nama resmi di AREA_ORDER (mis. "AREA KENDARI MASJID AGUNG",
+// "AREA PAREPARE", "AREA MAKASSAR SAM RATULANGI") — map manual supaya tetap match.
+const AREA_SEGMENT_ALIASES = {
+  'manado': 'Manado',
+  'palu': 'Palu',
+  'makassar kartini': 'Makassar Kartini',
+  'kendari': 'Kendari',
+  'kendari masjid agung': 'Kendari',
+  'pare pare': 'Pare Pare',
+  'parepare': 'Pare Pare',
+  'makassar ratulangi': 'Makassar Ratulangi',
+  'makassar sam ratulangi': 'Makassar Ratulangi',
+  'maluku': 'Maluku'
+};
 
 let RAW_GRID = [];        // grid 'Rekap'
 let PEGAWAI_HEADER = [];  // header sheet 'Data Pegawai'
@@ -220,34 +240,49 @@ function detectPegawaiColumns(){
 //         - Kode Cabang kosong / "-"  -> level Area Non Cabang (pegawai kantor area).
 //         - Kode Cabang ada isinya    -> level Cabang, di-join ke branches.js lewat
 //           Kode Cabang supaya nama cabang yang ditampilkan persis sama dengan 'Rekap'.
+// kata-kata yang harus tetap UPPERCASE penuh saat title-case (akronim/singkatan)
+const TITLECASE_KEEP_UPPER = new Set(['CEO','SME','X','L3+']);
+function titleCaseUnit(s){
+  return (s || '').toString().trim().split(/\s+/).map(w => {
+    const upperW = w.toUpperCase();
+    if (TITLECASE_KEEP_UPPER.has(upperW)) return upperW;
+    if (w === '&' || w === '/') return w;
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(' ');
+}
+
 function resolvePegawaiUnit(row){
   const segment = (row[PEGAWAI_COLS.segment] || '').toString().trim();
   const segmentLower = segment.toLowerCase();
   const kodeRaw = (row[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
   const kode = (kodeRaw === '-' || kodeRaw === '') ? '' : kodeRaw;
 
-  if (segmentLower === 'region' || segmentLower.startsWith('region')){
-    return { level: 'Region', area: null, unit: 'Kantor Region X' };
-  }
-
   if (segmentLower.startsWith('area')){
+    const rawAreaName = segment.replace(/^area\s*/i, '').trim().toLowerCase();
+    const areaName = AREA_SEGMENT_ALIASES[rawAreaName]
+      || AREA_ORDER.find(a => a.toLowerCase() === rawAreaName)
+      || segment.replace(/^area\s*/i, '').trim();
     if (!kode){
-      const rawAreaName = segment.replace(/^area\s*/i, '').trim();
-      const areaName = AREA_ORDER.find(a => a.toLowerCase() === rawAreaName.toLowerCase()) || rawAreaName;
       return { level: 'Area Non Cabang', area: areaName || null, unit: 'Kantor Area ' + (areaName || '') + ' (Pegawai Non Cabang)' };
     }
     const branch = BRANCHES.find(b => b.kode.toString().trim() === kode);
     if (branch) return { level: 'Cabang', area: branch.area, unit: branch.cabang };
-    return { level: 'Cabang', area: null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
+    return { level: 'Cabang', area: areaName || null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
   }
 
-  // fallback kalau Segment tidak diawali "Region"/"Area" tapi Kode Cabang ada isinya
+  // bukan "Area ..." -> kalau ada Kode Cabang tetap level Cabang (jaga-jaga data tidak konsisten)
   if (kode){
     const branch = BRANCHES.find(b => b.kode.toString().trim() === kode);
     if (branch) return { level: 'Cabang', area: branch.area, unit: branch.cabang };
     return { level: 'Cabang', area: null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
   }
-  return { level: 'Lainnya', area: null, unit: segment || 'Tidak diketahui' };
+
+  // sisanya = pegawai Kantor Region X (Kanwil) — Segment-nya adalah nama
+  // unit/departemen aslinya sendiri (mis. "BUSINESS SUPPORT X",
+  // "TRANSACTION BANKING RETAIL REGION X / SULAWESI & MALUKU", dst),
+  // BUKAN literal "Region" — jadi ditampilkan persis nama unitnya (title case),
+  // bukan digeneralisir jadi "Kantor Region X".
+  return { level: 'Region', area: null, unit: titleCaseUnit(segment) || 'Tidak diketahui' };
 }
 
 // --- ambil 3 sel di kanan sebuah sel (Transaksi, Pegawai, %) jadi satu objek stats ---
@@ -274,9 +309,11 @@ function findRowStats(name, opts){
       const cell = row[c];
       if (typeof cell !== 'string') continue;
       const cellNorm = cell.trim().toLowerCase();
-      if (cellNorm === target) return readStatsAt(row, c, name);
+      if (cellNorm === target){
+        const s = readStatsAt(row, c, name); s.matchedLabel = cell.trim(); return s;
+      }
       if (opts.allowPrefix && !fallback && cellNorm.startsWith(target + ' ')){
-        fallback = readStatsAt(row, c, name);
+        const s = readStatsAt(row, c, name); s.matchedLabel = cell.trim(); fallback = s;
       }
     }
   }
@@ -316,16 +353,30 @@ function findKantorAreaStats(areaName){
   return { name: label, trx:0, peg:0, pct:0, notFound:true };
 }
 
-// --- stats total Region X, diambil dari baris "Grand Total" di blok ringkasan Area
-//     (kolom F, bukan "Grand Total" yang ada di tiap blok detail Cabang per Area). ---
-function findRegionStats(){
-  for (let r = 0; r < RAW_GRID.length; r++){
-    const cell = RAW_GRID[r][6];
-    if (typeof cell === 'string' && cell.trim().toLowerCase() === 'grand total'){
-      return readStatsAt(RAW_GRID[r], 6, 'Region X');
-    }
-  }
-  return { name: 'Region X', trx:0, peg:0, pct:0, notFound:true };
+// --- breakdown per-unit Kantor Region X (Kanwil), mis. "Business Support X",
+//     "Transaction Banking Retail Region X", dst — dihitung LANGSUNG dari sheet
+//     'Data Pegawai' (group by Segment, % = jumlah status "Done" / total pegawai
+//     unit itu), BUKAN dari blok "Unit Region" di sheet 'Rekap' (blok itu Jml
+//     Pegawai-nya tidak match dengan jumlah pegawai per Segment di 'Data Pegawai'
+//     — kemungkinan formula pivot di 'Rekap' sudah tidak sinkron lagi, jadi
+//     dihindari supaya angka yang tampil di dashboard tidak salah/menyesatkan). ---
+function findUnitRegionRows(){
+  const groups = {};
+  PEGAWAI_ROWS.forEach(r => {
+    const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
+    if (!segment || /^area/i.test(segment)) return; // skip pegawai Area, sisanya = Kanwil
+    const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
+    if (kodeRaw && kodeRaw !== '-') return; // skip kalau ternyata ada Kode Cabang (anomali)
+    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+    if (!groups[segment]) groups[segment] = { peg: 0, done: 0 };
+    groups[segment].peg++;
+    if (status === 'done') groups[segment].done++;
+  });
+  return Object.keys(groups).map(seg => {
+    const g = groups[seg];
+    const pct = g.peg ? (g.done / g.peg * 100) : 0;
+    return { name: titleCaseUnit(seg), trx: g.done, peg: g.peg, pct };
+  });
 }
 
 function populateFilters(){
@@ -386,8 +437,8 @@ function render(){
   let missingMode = { type: 'all' };
 
   if (area === '__REGION__'){
-    rows = [findRegionStats()];
-    scopeLabel = "Region";
+    rows = findUnitRegionRows();
+    scopeLabel = "Unit Kantor Region X (Kanwil)";
     colLabel = "Unit";
     missingMode = { type: 'region' };
   } else if (area === '__NONCABANG__'){
@@ -459,9 +510,7 @@ function renderMissingLink(mode){
         nama,
         unit: u.unit,
         area: u.area,
-        level: u.level,
-        hp: r[PEGAWAI_COLS.hp] || '-',
-        jabatan: r[PEGAWAI_COLS.jabatan] || '-'
+        level: u.level
       };
     })
     .filter(Boolean)
@@ -479,24 +528,124 @@ function renderMissingLink(mode){
   const tbody = document.querySelector('#missingTable tbody');
   if (!rows.length){
     tbody.innerHTML = !PEGAWAI_LOADED
-      ? `<tr><td colspan="5" class="empty bad">⚠️ Data pegawai belum termuat dari backend — lihat peringatan di atas halaman, bukan berarti sudah "Done" semua.</td></tr>`
-      : `<tr><td colspan="5" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
+      ? `<tr><td colspan="3" class="empty bad">⚠️ Data pegawai belum termuat dari backend — lihat peringatan di atas halaman, bukan berarti sudah "Done" semua.</td></tr>`
+      : `<tr><td colspan="3" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
   } else {
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td>${r.nama}</td>
         <td>${r.unit}</td>
         <td>${r.area || (r.level === 'Region' ? 'Region X' : '-')}</td>
-        <td>${r.hp}</td>
-        <td>${r.jabatan}</td>
       </tr>
     `).join('');
+  }
+}
+
+/* =========================================================================
+   KIRIM RANKING PER AREA KE WHATSAPP (gambar + wording otomatis)
+   Selalu pakai breakdown per-Area (AREA_ORDER), independen dari filter yang
+   sedang aktif di dropdown — karena wording-nya memang spesifik "% partisipasi
+   tiap Area", bukan tergantung tampilan ranking saat ini.
+========================================================================= */
+function formatWitaTime(){
+  const parts = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(new Date());
+  const hh = (parts.find(p => p.type === 'hour') || {}).value || '00';
+  const mm = (parts.find(p => p.type === 'minute') || {}).value || '00';
+  return hh + '.' + mm;
+}
+
+function getAreaRankingRows(){
+  return AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true})).sort((a,b) => b.pct - a.pct);
+}
+
+function buildWaTextFromRows(rows){
+  const lines = rows.map(r => `✅ ${r.matchedLabel || r.name} - ${Math.round(r.pct)}%`);
+  return 'Semangat Pagi,\n' +
+    'Yth. Bapak/Ibu\n' +
+    'Region X - Posisi ' + formatWitaTime() + ' WITA\n' +
+    'Berikut % partisipasi tiap Area, diurutkan dari tertinggi ke terendah :\n' +
+    lines.join('\n') + '\n' +
+    'Demikian kami sampaikan, terimakasih. 🙏';
+}
+
+function buildWaImageElement(rows){
+  const tanggal = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Makassar', day: '2-digit', month: 'long', year: 'numeric'
+  }).format(new Date());
+  const wrap = document.createElement('div');
+  wrap.style.position = 'fixed';
+  wrap.style.left = '-9999px';
+  wrap.style.top = '0';
+  wrap.style.width = '420px';
+  wrap.style.fontFamily = 'Arial, Helvetica, sans-serif';
+  wrap.style.background = '#ffffff';
+  wrap.innerHTML = `
+    <div style="background:#003d79;color:#fff;padding:14px 18px;border-bottom:4px solid #ffcb05;">
+      <div style="font-size:15px;font-weight:bold;">Partisipasi Livin' Food &mdash; Region X</div>
+      <div style="font-size:11px;color:#cfe0f3;margin-top:2px;">Posisi ${formatWitaTime()} WITA &middot; ${tanggal}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="background:#eef3f9;">
+        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">#</th>
+        <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">AREA</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i) => `
+          <tr style="border-bottom:1px solid #e5e7eb;">
+            <td style="padding:8px 12px;">${i+1}</td>
+            <td style="padding:8px 12px;">${r.matchedLabel || r.name}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${r.pct>0?'#16a34a':'#dc2626'};">${Math.round(r.pct)}%</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="padding:10px 18px;font-size:10px;color:#6b7280;">Transaction Banking Retail &middot; Dibuat otomatis dari dashboard</div>
+  `;
+  document.body.appendChild(wrap);
+  return wrap;
+}
+
+async function shareToWhatsapp(){
+  const btn = document.getElementById('waShareBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+  let el = null;
+  try{
+    const rows = getAreaRankingRows();
+    const text = buildWaTextFromRows(rows);
+    el = buildWaImageElement(rows);
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const file = new File([blob], 'partisipasi-region-x.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], text, title: 'Partisipasi Livin\' Food - Region X' });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'partisipasi-region-x.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      alert('Gambar ranking sudah didownload ke device kamu.\nTab WhatsApp sudah dibuka dengan teks wording otomatis — lampirkan gambar yang baru didownload secara manual ke chat WhatsApp.');
+    }
+  }catch(err){
+    console.error('Gagal membuat/berbagi gambar WA:', err);
+    alert('Gagal membuat gambar untuk WhatsApp: ' + err.message);
+  }finally{
+    if (el) el.remove();
+    btn.disabled = false;
+    btn.textContent = originalLabel;
   }
 }
 
 document.getElementById('areaSelect').addEventListener('change', () => { updateCabangOptions(); render(); });
 document.getElementById('cabangSelect').addEventListener('change', render);
 document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('waShareBtn').addEventListener('click', shareToWhatsapp);
 
 loadData();
 </script>
