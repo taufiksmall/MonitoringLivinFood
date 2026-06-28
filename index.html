@@ -258,9 +258,44 @@ function findRowByKode(kode, label){
   return findRowStats(label || kode);
 }
 
+// --- stats "Kantor Area {Area} (Pegawai Non Cabang)" per Area, dicari lewat prefix
+//     "kantor area {area}" supaya tetap ketemu walau ada tambahan teks di belakangnya
+//     (mis. label Kendari di Rekap = "Kantor Area Kendari Mesjid Agung ..."). ---
+function findKantorAreaStats(areaName){
+  const target = ('kantor area ' + (areaName || '').trim()).toLowerCase();
+  const label = 'Kantor Area ' + areaName + ' (Pegawai Non Cabang)';
+  for (let r = 0; r < RAW_GRID.length; r++){
+    const cell = RAW_GRID[r][0];
+    if (typeof cell === 'string' && cell.trim().toLowerCase().startsWith(target)){
+      return readStatsAt(RAW_GRID[r], 0, label);
+    }
+  }
+  return { name: label, trx:0, peg:0, pct:0, notFound:true };
+}
+
+// --- stats total Region X, diambil dari baris "Grand Total" di blok ringkasan Area
+//     (kolom F, bukan "Grand Total" yang ada di tiap blok detail Cabang per Area). ---
+function findRegionStats(){
+  for (let r = 0; r < RAW_GRID.length; r++){
+    const cell = RAW_GRID[r][6];
+    if (typeof cell === 'string' && cell.trim().toLowerCase() === 'grand total'){
+      return readStatsAt(RAW_GRID[r], 6, 'Region X');
+    }
+  }
+  return { name: 'Region X', trx:0, peg:0, pct:0, notFound:true };
+}
+
 function populateFilters(){
   const areaSel = document.getElementById('areaSelect');
   if (areaSel.options.length <= 1){
+    const optRegion = document.createElement('option');
+    optRegion.value = '__REGION__'; optRegion.textContent = 'Region X (Kantor Pusat/Kanwil)';
+    areaSel.appendChild(optRegion);
+
+    const optNonCabang = document.createElement('option');
+    optNonCabang.value = '__NONCABANG__'; optNonCabang.textContent = 'Area Non Cabang (Semua Area)';
+    areaSel.appendChild(optNonCabang);
+
     AREA_ORDER.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a; opt.textContent = a;
@@ -274,6 +309,9 @@ function updateCabangOptions(){
   const area = document.getElementById('areaSelect').value;
   const cabSel = document.getElementById('cabangSelect');
   cabSel.innerHTML = '<option value="">Semua Cabang</option>';
+  const isSpecial = (area === '__REGION__' || area === '__NONCABANG__');
+  cabSel.disabled = isSpecial;
+  if (isSpecial) return;
   const list = area ? BRANCHES.filter(b => b.area === area) : BRANCHES;
   list.forEach(b => {
     const opt = document.createElement('option');
@@ -302,19 +340,33 @@ function render(){
   let rows = [];
   let scopeLabel = "";
   let colLabel = "Nama";
+  let missingMode = { type: 'all' };
 
-  if (cabangKode){
+  if (area === '__REGION__'){
+    rows = [findRegionStats()];
+    scopeLabel = "Region X (Kantor Pusat/Kanwil)";
+    colLabel = "Unit";
+    missingMode = { type: 'region' };
+  } else if (area === '__NONCABANG__'){
+    rows = AREA_ORDER.map(a => findKantorAreaStats(a));
+    scopeLabel = "Kantor Area Non Cabang (Semua Area)";
+    colLabel = "Kantor Area";
+    missingMode = { type: 'noncabang' };
+  } else if (cabangKode){
     rows = [findRowByKode(cabangKode, cabangName)];
     scopeLabel = cabangName + " (" + area + ")";
     colLabel = "Cabang";
+    missingMode = { type: 'cabang', cabangName };
   } else if (area){
     rows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
     scopeLabel = "Cabang - Area " + area;
     colLabel = "Cabang";
+    missingMode = { type: 'area', area };
   } else {
     rows = AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true}));
     scopeLabel = "Per Area (Region X)";
     colLabel = "Area";
+    missingMode = { type: 'all' };
   }
 
   rows.sort((a,b) => b.pct - a.pct);
@@ -349,10 +401,11 @@ function render(){
     `).join('');
   }
 
-  renderMissingLink(area, cabangName);
+  renderMissingLink(missingMode);
 }
 
-function renderMissingLink(area, cabangName){
+// mode.type: 'all' | 'region' | 'noncabang' | 'area' | 'cabang'
+function renderMissingLink(mode){
   let rows = PEGAWAI_ROWS
     .map(r => {
       const nama = (r[PEGAWAI_COLS.nama] || '').toString().trim();
@@ -370,9 +423,13 @@ function renderMissingLink(area, cabangName){
     })
     .filter(Boolean)
     .filter(r => {
-      if (cabangName) return r.unit === cabangName;   // filter cabang spesifik
-      if (area) return r.area === area;               // cabang area ini + Kantor Area-nya
-      return true;                                     // semua (Region + Area + Cabang)
+      switch (mode.type){
+        case 'cabang':    return r.level === 'Cabang' && r.unit === mode.cabangName; // pegawai cabang ini saja
+        case 'area':      return r.area === mode.area;          // pegawai cabang area ini + Kantor Area-nya
+        case 'region':    return r.level === 'Region';           // pegawai level Region X (Kanwil)
+        case 'noncabang': return r.level === 'Area Non Cabang';  // pegawai Kantor Area (semua area)
+        default:          return true;                           // semua (Region + Area + Cabang)
+      }
     });
 
   document.getElementById('missingBadge').textContent = rows.length;
