@@ -90,7 +90,7 @@
   <section>
     <h2>Pegawai Belum Input Link Bukti Screenshot <span class="badge" id="missingBadge">0</span></h2>
     <div class="scroll"><table id="missingTable">
-      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th><th>No. HP</th><th>Tanggal</th></tr></thead>
+      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th><th>No. HP</th><th>Jabatan</th></tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
@@ -108,9 +108,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyX3ShYbFMh674bL-YCyEcF
 
 const AREA_ORDER = ["Manado","Palu","Makassar Kartini","Kendari","Pare Pare","Makassar Ratulangi","Maluku"];
 
-let RAW_GRID = [];     // grid 'Rekap'
-let RAW_DATA = [];     // array of objects dari sheet data mentah
-let RAW_HEADER = [];
+let RAW_GRID = [];        // grid 'Rekap'
+let PEGAWAI_HEADER = [];  // header sheet 'Data Pegawai'
+let PEGAWAI_ROWS = [];    // array of objects dari sheet 'Data Pegawai'
+let PEGAWAI_COLS = {};    // hasil deteksi kolom: nama, segment, kodeCabang, area, status, hp, jabatan, nip
 let lastPayload = null;
 
 function setStatus(msg){ document.getElementById('status').textContent = msg; }
@@ -141,17 +142,69 @@ function loadViaJsonp(){
 function onData(json){
   lastPayload = json;
   RAW_GRID = json.rekap || [];
-  const raw2d = json.raw || [];
-  RAW_HEADER = raw2d.length ? raw2d[0] : [];
-  RAW_DATA = raw2d.slice(1).map(row => {
+  const peg2d = json.pegawai || [];
+  PEGAWAI_HEADER = peg2d.length ? peg2d[0] : [];
+  PEGAWAI_ROWS = peg2d.slice(1).map(row => {
     const o = {};
-    RAW_HEADER.forEach((h, i) => o[h] = row[i]);
+    PEGAWAI_HEADER.forEach((h, i) => o[h] = row[i]);
     return o;
   });
+  detectPegawaiColumns();
   document.getElementById('lastUpdated').textContent = json.generatedAt ? new Date(json.generatedAt).toLocaleString('id-ID') : '-';
   setStatus("Data live ✓");
   populateFilters();
   render();
+}
+
+// --- deteksi kolom penting di sheet 'Data Pegawai' lewat nama header,
+//     dan kolom status (Done/Not Yet) lewat ISI selnya (bukan nama header,
+//     karena nama kolomnya tidak disebutkan persis). ---
+function detectPegawaiColumns(){
+  const byHeader = (re) => PEGAWAI_HEADER.find(h => re.test((h||'').toString()));
+  PEGAWAI_COLS.nama = byHeader(/nama/i) || 'Nama Pegawai';
+  PEGAWAI_COLS.segment = byHeader(/segment/i) || 'Segment';
+  PEGAWAI_COLS.kodeCabang = byHeader(/kode.*cabang/i) || 'Kode Cabang';
+  PEGAWAI_COLS.area = byHeader(/^area([^a-z]|$)|area\/?departemen/i) || byHeader(/area/i) || 'Area';
+  PEGAWAI_COLS.hp = byHeader(/hp|telepon|phone/i) || 'No. HP';
+  PEGAWAI_COLS.jabatan = byHeader(/jabatan/i) || 'Jabatan';
+  PEGAWAI_COLS.nip = byHeader(/nip/i) || 'NIP';
+
+  // kolom status: cari kolom (selain yang sudah dipakai di atas) yang isinya
+  // dominan "done" / "not yet", supaya tidak tergantung nama header kolom I.
+  let statusCol = null, bestScore = 0;
+  PEGAWAI_HEADER.forEach((h, idx) => {
+    let score = 0, total = 0;
+    PEGAWAI_ROWS.forEach(r => {
+      const v = (r[h] || '').toString().trim().toLowerCase();
+      if (!v) return;
+      total++;
+      if (v === 'done' || v === 'not yet') score++;
+    });
+    if (total > 0 && score / total > 0.5 && score > bestScore){
+      bestScore = score; statusCol = h;
+    }
+  });
+  PEGAWAI_COLS.status = statusCol || 'Status';
+}
+
+// --- tentukan level & unit seorang pegawai: Region / Kantor Area (non cabang) / Cabang.
+//     Kode Cabang dijadikan kunci join ke branches.js supaya nama cabang yang
+//     ditampilkan persis sama dengan nama cabang di sheet 'Rekap'. ---
+function resolvePegawaiUnit(row){
+  const kode = (row[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
+  const segment = (row[PEGAWAI_COLS.segment] || '').toString().trim().toLowerCase();
+  const areaRaw = (row[PEGAWAI_COLS.area] || '').toString().trim();
+
+  if (kode){
+    const branch = BRANCHES.find(b => b.kode.toString().trim() === kode);
+    if (branch) return { level: 'Cabang', area: branch.area, unit: branch.cabang };
+    return { level: 'Cabang', area: areaRaw || null, unit: 'Kode Cabang ' + kode + ' (tidak ditemukan di master)' };
+  }
+  if (segment.includes('region')) {
+    return { level: 'Region', area: null, unit: 'Kantor Region X' };
+  }
+  const areaName = areaRaw || (row[PEGAWAI_COLS.segment] || '').toString().trim();
+  return { level: 'Area Non Cabang', area: areaName || null, unit: 'Kantor Area ' + (areaName || '') + ' (Pegawai Non Cabang)' };
 }
 
 // --- cari nama (area/cabang) di grid Rekap, ambil 3 sel di kanannya (Transaksi, Pegawai, %) ---
@@ -266,35 +319,40 @@ function render(){
 }
 
 function renderMissingLink(area, cabang){
-  const colCabang = RAW_HEADER.find(h => /cabang/i.test(h)) || 'Cabang';
-  const colArea = RAW_HEADER.find(h => /area|departemen/i.test(h)) || 'Area/Departemen';
-  const colNama = RAW_HEADER.find(h => /nama/i.test(h)) || 'Nama Pegawai';
-  const colLink = RAW_HEADER.find(h => /link/i.test(h)) || 'Link Bukti Screenshot';
-  const colUnit = RAW_HEADER.find(h => /^unit$/i.test(h)) || 'Unit';
-  const colHp = RAW_HEADER.find(h => /hp|telepon|phone/i.test(h)) || 'No. HP';
-  const colTgl = RAW_HEADER.find(h => /tanggal/i.test(h)) || 'Tanggal Transaksi';
-
-  let rows = RAW_DATA.filter(r => {
-    const nama = (r[colNama] || '').toString().trim();
-    const link = (r[colLink] || '').toString().trim();
-    if (!nama || link) return false;
-    if (area && (r[colArea] || '').toString().trim() !== area) return false;
-    if (cabang && (r[colCabang] || '').toString().trim() !== cabang) return false;
-    return true;
-  });
+  let rows = PEGAWAI_ROWS
+    .map(r => {
+      const nama = (r[PEGAWAI_COLS.nama] || '').toString().trim();
+      const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+      if (!nama || status !== 'not yet') return null;
+      const u = resolvePegawaiUnit(r);
+      return {
+        nama,
+        unit: u.unit,
+        area: u.area,
+        level: u.level,
+        hp: r[PEGAWAI_COLS.hp] || '-',
+        jabatan: r[PEGAWAI_COLS.jabatan] || '-'
+      };
+    })
+    .filter(Boolean)
+    .filter(r => {
+      if (cabang) return r.unit === cabang;          // filter cabang spesifik
+      if (area) return r.area === area;              // cabang area ini + Kantor Area-nya
+      return true;                                    // semua (Region + Area + Cabang)
+    });
 
   document.getElementById('missingBadge').textContent = rows.length;
   const tbody = document.querySelector('#missingTable tbody');
   if (!rows.length){
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada (semua sudah input link) ✅</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
   } else {
     tbody.innerHTML = rows.map(r => `
       <tr>
-        <td>${r[colNama] || '-'}</td>
-        <td>${r[colCabang] || r[colUnit] || '-'}</td>
-        <td>${r[colArea] || '-'}</td>
-        <td>${r[colHp] || '-'}</td>
-        <td>${r[colTgl] || '-'}</td>
+        <td>${r.nama}</td>
+        <td>${r.unit}</td>
+        <td>${r.area || (r.level === 'Region' ? 'Region X' : '-')}</td>
+        <td>${r.hp}</td>
+        <td>${r.jabatan}</td>
       </tr>
     `).join('');
   }
