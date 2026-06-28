@@ -59,6 +59,9 @@
 </header>
 
 <main>
+  <div id="pegawaiWarning" style="display:none;background:#fef2f2;border:1px solid var(--bad);color:var(--bad);
+    border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:600;"></div>
+
   <div class="filters">
     <div class="f">
       <label for="areaSelect">Area</label>
@@ -88,7 +91,7 @@
   </section>
 
   <section>
-    <h2>Pegawai Belum Input Link Bukti Screenshot <span class="badge" id="missingBadge">0</span></h2>
+    <h2>Pegawai Belum Input (Status "Not Yet") <span class="badge" id="missingBadge">0</span></h2>
     <div class="scroll"><table id="missingTable">
       <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th><th>No. HP</th><th>Jabatan</th></tr></thead>
       <tbody></tbody>
@@ -112,6 +115,7 @@ let RAW_GRID = [];        // grid 'Rekap'
 let PEGAWAI_HEADER = [];  // header sheet 'Data Pegawai'
 let PEGAWAI_ROWS = [];    // array of objects dari sheet 'Data Pegawai'
 let PEGAWAI_COLS = {};    // hasil deteksi kolom: nama, segment, kodeCabang, area, status, hp, jabatan, nip
+let PEGAWAI_LOADED = false; // true hanya kalau backend benar2 mengirim isi sheet 'Data Pegawai'
 let lastPayload = null;
 
 function setStatus(msg){ document.getElementById('status').textContent = msg; }
@@ -150,6 +154,28 @@ function onData(json){
     return o;
   });
   detectPegawaiColumns();
+
+  // --- cek apakah backend BENAR-BENAR mengirim isi sheet 'Data Pegawai'.
+  //     Kalau field 'pegawai' tidak ada / kosong / sheet-nya bukan persis
+  //     "Data Pegawai", tampilkan peringatan jelas bukan tabel kosong yang
+  //     menyesatkan (seolah "semua sudah Done"). Tidak pernah fallback diam2
+  //     ke sheet lain (mis. 'Rekap'/'Semua Data') untuk data pegawai. ---
+  const warnEl = document.getElementById('pegawaiWarning');
+  PEGAWAI_LOADED = Array.isArray(json.pegawai) && json.pegawai.length > 1 && json.pegawaiSheetName === 'Data Pegawai';
+  if (!PEGAWAI_LOADED){
+    const sheetInfo = json.pegawaiSheetName ? `("${json.pegawaiSheetName}", bukan "Data Pegawai")`
+      : (json.rawSheetName ? `Backend masih mengirim sheet "${json.rawSheetName}" (field "raw"), bukan field "pegawai".`
+      : 'Field "pegawai" tidak ada di response API.');
+    warnEl.style.display = 'block';
+    warnEl.innerHTML = `⚠️ Data pegawai BELUM termuat dari sheet "Data Pegawai". ${sheetInfo}<br>
+      Apps Script (Code.gs) di project Apps Script kamu perlu di-redeploy ulang (Deploy &gt; Manage deployments &gt;
+      pensil &gt; New version &gt; Deploy) dengan isi <code>Code.gs</code> yang benar — lihat README bagian
+      "Pegawai Belum Input" untuk langkah detail.`;
+  } else {
+    warnEl.style.display = 'none';
+    warnEl.innerHTML = '';
+  }
+
   document.getElementById('lastUpdated').textContent = json.generatedAt ? new Date(json.generatedAt).toLocaleString('id-ID') : '-';
   setStatus("Data live ✓");
   populateFilters();
@@ -452,7 +478,9 @@ function renderMissingLink(mode){
   document.getElementById('missingBadge').textContent = rows.length;
   const tbody = document.querySelector('#missingTable tbody');
   if (!rows.length){
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
+    tbody.innerHTML = !PEGAWAI_LOADED
+      ? `<tr><td colspan="5" class="empty bad">⚠️ Data pegawai belum termuat dari backend — lihat peringatan di atas halaman, bukan berarti sudah "Done" semua.</td></tr>`
+      : `<tr><td colspan="5" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
   } else {
     tbody.innerHTML = rows.map(r => `
       <tr>
