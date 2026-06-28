@@ -633,7 +633,7 @@ function render(){
   const totalPeg = rows.reduce((s,r) => s + r.peg, 0);
   const totalPct = totalPeg ? (totalTrx/totalPeg*100) : 0;
   document.getElementById('cards').innerHTML = `
-    <div class="card"><div class="label">Total Input Livin Food</div><div class="value">${totalTrx.toLocaleString('id-ID')}</div></div>
+    <div class="card"><div class="label">Total Transaksi</div><div class="value">${totalTrx.toLocaleString('id-ID')}</div></div>
     <div class="card"><div class="label">Total Jml Pegawai</div><div class="value">${totalPeg.toLocaleString('id-ID')}</div></div>
     <div class="card"><div class="label">% Partisipasi</div><div class="value">${totalPct.toFixed(0)}%</div></div>
     <div class="card"><div class="label">Jumlah Unit Ditampilkan</div><div class="value">${rows.length}</div></div>
@@ -783,6 +783,12 @@ function buildWaText(context){
     'Demikian kami sampaikan, terimakasih. 🙏';
 }
 
+function getPctColor(pct){
+  if (pct >= 100) return '#16a34a';
+  if (pct >= 95.6) return '#ca8a04';
+  return '#dc2626';
+}
+
 function buildWaImageElement(context){
   const rows = context.rows;
   const tanggal = new Intl.DateTimeFormat('id-ID', {
@@ -806,7 +812,9 @@ function buildWaImageElement(context){
         <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">${context.colLabel.toUpperCase()}</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">INPUT LIVIN FOOD</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">JML PEGAWAI</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">GAP</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">RANK</th>
       </tr></thead>
       <tbody>
         ${rows.map((r,i) => `
@@ -815,7 +823,9 @@ function buildWaImageElement(context){
             <td style="padding:8px 12px;">${r.matchedLabel || r.name}</td>
             <td style="padding:8px 12px;text-align:right;">${(Number(r.trx) || 0).toLocaleString('id-ID')}</td>
             <td style="padding:8px 12px;text-align:right;">${(Number(r.peg) || 0).toLocaleString('id-ID')}</td>
-            <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${r.pct>0?'#16a34a':'#dc2626'};">${Math.round(r.pct)}%</td>
+            <td style="padding:8px 12px;text-align:right;">${Math.max(0, (Number(r.peg) || 0) - (Number(r.trx) || 0)).toLocaleString('id-ID')}</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${getPctColor(Number(r.pct) || 0)};">${(Number(r.pct) || 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+            <td style="padding:8px 12px;text-align:right;font-weight:bold;">${i+1}</td>
           </tr>`).join('')}
       </tbody>
     </table>
