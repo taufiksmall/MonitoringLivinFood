@@ -792,7 +792,7 @@ function buildWaImageElement(context){
   wrap.style.position = 'fixed';
   wrap.style.left = '-9999px';
   wrap.style.top = '0';
-  wrap.style.width = '420px';
+  wrap.style.width = '560px';
   wrap.style.fontFamily = 'Arial, Helvetica, sans-serif';
   wrap.style.background = '#ffffff';
   wrap.innerHTML = `
@@ -804,6 +804,8 @@ function buildWaImageElement(context){
       <thead><tr style="background:#eef3f9;">
         <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">#</th>
         <th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;">${context.colLabel.toUpperCase()}</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">TRANSAKSI</th>
+        <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">JML PEGAWAI</th>
         <th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;">%</th>
       </tr></thead>
       <tbody>
@@ -811,6 +813,8 @@ function buildWaImageElement(context){
           <tr style="border-bottom:1px solid #e5e7eb;">
             <td style="padding:8px 12px;">${i+1}</td>
             <td style="padding:8px 12px;">${r.matchedLabel || r.name}</td>
+            <td style="padding:8px 12px;text-align:right;">${(Number(r.trx) || 0).toLocaleString('id-ID')}</td>
+            <td style="padding:8px 12px;text-align:right;">${(Number(r.peg) || 0).toLocaleString('id-ID')}</td>
             <td style="padding:8px 12px;text-align:right;font-weight:bold;color:${r.pct>0?'#16a34a':'#dc2626'};">${Math.round(r.pct)}%</td>
           </tr>`).join('')}
       </tbody>
