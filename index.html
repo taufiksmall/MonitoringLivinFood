@@ -563,6 +563,24 @@ function findKantorAreaStats(areaName){
   return { name: label, trx:0, peg:0, pct:0, notFound:true };
 }
 
+// --- total per-Area dihitung LIVE dengan menjumlah semua baris Cabang Area itu
+//     (lewat branches.js, yang sudah tidak memuat 35 cabang non-akses Livin' Food)
+//     + baris "Kantor Area (Pegawai Non Cabang)" milik Area itu sendiri.
+//     Dipakai untuk tampilan headline "Per Area" (default, tanpa filter) supaya
+//     pengecualian 35 cabang ikut tercermin di sini juga — sebelumnya bagian ini
+//     baca 1 sel hasil pivot Area di sheet Rekap (findRowStats), yang tidak ikut
+//     berubah walau branches.js sudah dikurangi (karena angkanya statis dari
+//     formula pivot kamu sendiri di Rekap, bukan dihitung ulang oleh dashboard). ---
+function computeAreaLiveStats(area){
+  const cabangRows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
+  const kantorArea = findKantorAreaStats(area);
+  const allRows = cabangRows.concat([kantorArea]);
+  const trx = allRows.reduce((s,r) => s + (Number(r.trx) || 0), 0);
+  const peg = allRows.reduce((s,r) => s + (Number(r.peg) || 0), 0);
+  const pct = peg ? (trx / peg * 100) : 0;
+  return { name: area, matchedLabel: area, trx, peg, pct, notFound: peg === 0 };
+}
+
 // --- breakdown per-unit Kantor Region X (Kanwil), mis. "Business Support X",
 //     "Transaction Banking Retail Region X", dst — dihitung LANGSUNG dari sheet
 //     'Data Pegawai' (group by Segment, % = jumlah status "Done" / total pegawai
@@ -667,7 +685,7 @@ function render(){
     colLabel = "Cabang";
     missingMode = { type: 'area', area };
   } else {
-    rows = AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true}));
+    rows = AREA_ORDER.map(a => computeAreaLiveStats(a));
     scopeLabel = "Per Area (Region X)";
     colLabel = "Area";
     missingMode = { type: 'all' };
@@ -807,7 +825,7 @@ function getShareContext(){
     introLine = `Berikut % partisipasi tiap Cabang Area ${area}, diurutkan dari tertinggi ke terendah :`;
     fileSlug = sanitizeFilePart(`partisipasi-area-${area}`);
   } else {
-    rows = AREA_ORDER.map(a => findRowStats(a, {allowPrefix:true}));
+    rows = AREA_ORDER.map(a => computeAreaLiveStats(a));
   }
 
   rows.sort((a,b) => b.pct - a.pct);
