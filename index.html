@@ -935,25 +935,25 @@ function getShareContext(){
     introLine = "Berikut % partisipasi tiap Unit Kantor Region X (Kanwil), diurutkan dari tertinggi ke terendah :";
     fileSlug = "partisipasi-unit-region-x";
   } else if (area === '__NONCABANG__'){
-    rows = AREA_ORDER.map(a => findKantorAreaStats(a));
+    rows = AREA_ORDER.map(a => computeKantorAreaStatsFromPegawai(a));
     imageTitle = "Partisipasi Kantor Area Non Cabang";
     colLabel = "Kantor Area";
     introLine = "Berikut % partisipasi tiap Kantor Area Non Cabang, diurutkan dari tertinggi ke terendah :";
     fileSlug = "partisipasi-kantor-area-non-cabang";
   } else if (cabangKode){
-    rows = [findRowByKode(cabangKode, cabangName)];
+    rows = [computeCabangStatsFromPegawai(cabangKode, cabangName)];
     imageTitle = `Partisipasi Cabang ${cabangName}`;
     colLabel = "Cabang";
     introLine = `Berikut % partisipasi Cabang ${cabangName}${area ? ' - Area ' + area : ''} :`;
     fileSlug = sanitizeFilePart(`partisipasi-${cabangName}`);
   } else if (area){
-    rows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
+    rows = BRANCHES.filter(b => b.area === area).map(b => computeCabangStatsFromPegawai(b.kode, b.cabang));
     imageTitle = `Partisipasi Area ${area}`;
     colLabel = "Cabang";
     introLine = `Berikut % partisipasi tiap Cabang Area ${area}, diurutkan dari tertinggi ke terendah :`;
     fileSlug = sanitizeFilePart(`partisipasi-area-${area}`);
   } else {
-    rows = AREA_ORDER.map(a => computeAreaLiveStats(a));
+    rows = AREA_ORDER.map(a => computeAreaStatsFromPegawai(a));
   }
 
   rows.sort((a,b) => b.pct - a.pct);
