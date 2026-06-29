@@ -174,9 +174,13 @@
   #rankingTable th:nth-child(3), #rankingTable td:nth-child(3),
   #rankingTable th:nth-child(4), #rankingTable td:nth-child(4){width:140px;text-align:right;}
   #rankingTable th:nth-child(5), #rankingTable td:nth-child(5){width:170px;text-align:right;}
-  #missingTable th:nth-child(1), #missingTable td:nth-child(1){width:32%;}
-  #missingTable th:nth-child(2), #missingTable td:nth-child(2){width:38%;}
-  #missingTable th:nth-child(3), #missingTable td:nth-child(3){width:30%;}
+  #missingTable th:nth-child(1), #missingTable td:nth-child(1){width:16%;}
+  #missingTable th:nth-child(2), #missingTable td:nth-child(2){width:34%;}
+  #missingTable th:nth-child(3), #missingTable td:nth-child(3){width:25%;}
+  #missingTable th:nth-child(4), #missingTable td:nth-child(4){width:25%;}
+  #missingTable th.sortable{cursor:pointer;user-select:none;}
+  #missingTable th.sortable:hover{color:var(--navy);}
+  #missingTable th.sortable .sort-ind{display:inline-block;margin-left:4px;font-size:10px;}
   tbody tr{transition:background .18s ease;}
   tbody tr:hover{background:#f8fbff;}
   tr:last-child td{border-bottom:none;}
@@ -283,14 +287,28 @@
   </section>
 
   <section>
-    <h2>Pegawai Belum Input (Status "Not Yet") <span class="badge" id="missingBadge">0</span></h2>
+    <h2>Pegawai Belum Input (Status "Belum") <span class="badge" id="missingBadge">0</span></h2>
+    <div class="filters" style="margin:0;border-radius:0;border:none;border-bottom:1px solid var(--border);box-shadow:none;background:#fbfdff;">
+      <div class="f">
+        <label for="segmentSelect">Segment</label>
+        <select id="segmentSelect">
+          <option value="">Semua Segment</option>
+        </select>
+      </div>
+    </div>
     <div class="scroll"><table id="missingTable">
       <colgroup>
-        <col style="width:32%">
-        <col style="width:38%">
-        <col style="width:30%">
+        <col style="width:16%">
+        <col style="width:34%">
+        <col style="width:25%">
+        <col style="width:25%">
       </colgroup>
-      <thead><tr><th>Nama Pegawai</th><th>Cabang / Unit</th><th>Area</th></tr></thead>
+      <thead><tr>
+        <th>NIP</th>
+        <th>Nama Pegawai</th>
+        <th class="sortable" data-sort="segment">Segment<span class="sort-ind"></span></th>
+        <th class="sortable" data-sort="cabang">Cabang<span class="sort-ind"></span></th>
+      </tr></thead>
       <tbody></tbody>
     </table></div>
   </section>
@@ -337,10 +355,11 @@ const EXCLUDED_CABANG_KODE = new Set([
 ]);
 
 let RAW_GRID = [];        // grid 'Rekap'
-let PEGAWAI_HEADER = [];  // header sheet 'Data Pegawai'
-let PEGAWAI_ROWS = [];    // array of objects dari sheet 'Data Pegawai'
-let PEGAWAI_COLS = {};    // hasil deteksi kolom: nama, segment, kodeCabang, area, status, hp, jabatan, nip
-let PEGAWAI_LOADED = false; // true hanya kalau backend benar2 mengirim isi sheet 'Data Pegawai'
+let PEGAWAI_HEADER = [];  // header sheet 'Rekap Partisipasi' (baris 8, dikirim backend sbg baris pertama)
+let PEGAWAI_ROWS = [];    // array of objects dari sheet 'Rekap Partisipasi'
+let PEGAWAI_COLS = {};    // hasil deteksi kolom: nama, segment, cabang, kodeCabang, area, status, hp, jabatan, nip
+let PEGAWAI_LOADED = false; // true hanya kalau backend benar2 mengirim isi sheet 'Rekap Partisipasi'
+let MISSING_SORT = { col: 'segment', dir: 1 }; // urutan tabel "Pegawai Belum Input": Segment lalu Cabang, ascending
 let lastPayload = null;
 
 function setStatus(msg){ document.getElementById('status').textContent = msg; }
@@ -380,19 +399,19 @@ function onData(json){
   });
   detectPegawaiColumns();
 
-  // --- cek apakah backend BENAR-BENAR mengirim isi sheet 'Data Pegawai'.
+  // --- cek apakah backend BENAR-BENAR mengirim isi sheet 'Rekap Partisipasi'.
   //     Kalau field 'pegawai' tidak ada / kosong / sheet-nya bukan persis
-  //     "Data Pegawai", tampilkan peringatan jelas bukan tabel kosong yang
+  //     "Rekap Partisipasi", tampilkan peringatan jelas bukan tabel kosong yang
   //     menyesatkan (seolah "semua sudah Done"). Tidak pernah fallback diam2
-  //     ke sheet lain (mis. 'Rekap'/'Semua Data') untuk data pegawai. ---
+  //     ke sheet lain (mis. 'Rekap'/'Data Pegawai'/'Semua Data') untuk data pegawai. ---
   const warnEl = document.getElementById('pegawaiWarning');
-  PEGAWAI_LOADED = Array.isArray(json.pegawai) && json.pegawai.length > 1 && json.pegawaiSheetName === 'Data Pegawai';
+  PEGAWAI_LOADED = Array.isArray(json.pegawai) && json.pegawai.length > 1 && json.pegawaiSheetName === 'Rekap Partisipasi';
   if (!PEGAWAI_LOADED){
-    const sheetInfo = json.pegawaiSheetName ? `("${json.pegawaiSheetName}", bukan "Data Pegawai")`
+    const sheetInfo = json.pegawaiSheetName ? `("${json.pegawaiSheetName}", bukan "Rekap Partisipasi")`
       : (json.rawSheetName ? `Backend masih mengirim sheet "${json.rawSheetName}" (field "raw"), bukan field "pegawai".`
       : 'Field "pegawai" tidak ada di response API.');
     warnEl.style.display = 'block';
-    warnEl.innerHTML = `⚠️ Data pegawai BELUM termuat dari sheet "Data Pegawai". ${sheetInfo}<br>
+    warnEl.innerHTML = `⚠️ Data pegawai BELUM termuat dari sheet "Rekap Partisipasi". ${sheetInfo}<br>
       Apps Script (Code.gs) di project Apps Script kamu perlu di-redeploy ulang (Deploy &gt; Manage deployments &gt;
       pensil &gt; New version &gt; Deploy) dengan isi <code>Code.gs</code> yang benar — lihat README bagian
       "Pegawai Belum Input" untuk langkah detail.`;
@@ -405,37 +424,46 @@ function onData(json){
   setStatus("Data live ✓");
   populateFilters();
   render();
+  populateSegmentFilter();
+  renderMissingTable();
 }
 
-// --- deteksi kolom penting di sheet 'Data Pegawai' lewat nama header,
-//     dan kolom status (Done/Not Yet) lewat ISI selnya (bukan nama header,
-//     karena nama kolomnya tidak disebutkan persis). ---
+// --- deteksi kolom penting di sheet 'Rekap Partisipasi' lewat nama header
+//     (header baris 8 di sheet: UNIT, NIP, Nama Pegawai, Direktorat, Region,
+//     Segment, Cabang, Kode Cabang, ..., Status Partisipasi). Deteksi lewat
+//     ISI sel (value-sniffing) cuma jadi fallback kalau nama header berubah. ---
 function detectPegawaiColumns(){
   const byHeader = (re) => PEGAWAI_HEADER.find(h => re.test((h||'').toString()));
   PEGAWAI_COLS.nama = byHeader(/nama/i) || 'Nama Pegawai';
   PEGAWAI_COLS.segment = byHeader(/segment/i) || 'Segment';
+  PEGAWAI_COLS.cabang = byHeader(/^cabang$/i) || 'Cabang';
   PEGAWAI_COLS.kodeCabang = byHeader(/kode.*cabang/i) || 'Kode Cabang';
   PEGAWAI_COLS.area = byHeader(/^area([^a-z]|$)|area\/?departemen/i) || byHeader(/area/i) || 'Area';
   PEGAWAI_COLS.hp = byHeader(/hp|telepon|phone/i) || 'No. HP';
   PEGAWAI_COLS.jabatan = byHeader(/jabatan/i) || 'Jabatan';
   PEGAWAI_COLS.nip = byHeader(/nip/i) || 'NIP';
 
-  // kolom status: cari kolom (selain yang sudah dipakai di atas) yang isinya
-  // dominan "done" / "not yet", supaya tidak tergantung nama header kolom I.
-  let statusCol = null, bestScore = 0;
-  PEGAWAI_HEADER.forEach((h, idx) => {
-    let score = 0, total = 0;
-    PEGAWAI_ROWS.forEach(r => {
-      const v = (r[h] || '').toString().trim().toLowerCase();
-      if (!v) return;
-      total++;
-      if (v === 'done' || v === 'not yet') score++;
+  // kolom status: utamakan match nama header "Status ..." (mis. "Status Partisipasi").
+  // Fallback ke value-sniffing (isi sel dominan done/belum/not yet) kalau header tidak ketemu.
+  const statusByHeader = byHeader(/status/i);
+  if (statusByHeader){
+    PEGAWAI_COLS.status = statusByHeader;
+  } else {
+    let statusCol = null, bestScore = 0;
+    PEGAWAI_HEADER.forEach((h, idx) => {
+      let score = 0, total = 0;
+      PEGAWAI_ROWS.forEach(r => {
+        const v = (r[h] || '').toString().trim().toLowerCase();
+        if (!v) return;
+        total++;
+        if (v === 'done' || v === 'not yet' || v === 'belum') score++;
+      });
+      if (total > 0 && score / total > 0.5 && score > bestScore){
+        bestScore = score; statusCol = h;
+      }
     });
-    if (total > 0 && score / total > 0.5 && score > bestScore){
-      bestScore = score; statusCol = h;
-    }
-  });
-  PEGAWAI_COLS.status = statusCol || 'Status';
+    PEGAWAI_COLS.status = statusCol || 'Status';
+  }
 }
 
 // --- tentukan level & unit seorang pegawai, berdasarkan kolom F "Segment" (utama)
@@ -722,49 +750,91 @@ function render(){
       </tr>
     `).join('');
   }
-
-  renderMissingLink(missingMode);
+  // Catatan: tabel "Pegawai Belum Input" TIDAK lagi ikut filter Area/Cabang di atas —
+  // sekarang independen, difilter sendiri lewat dropdown Segment (lihat renderMissingTable()).
 }
 
-// mode.type: 'all' | 'region' | 'noncabang' | 'area' | 'cabang'
-function renderMissingLink(mode){
+// =========================================================================
+// TABEL "PEGAWAI BELUM INPUT" — sumber: sheet 'Rekap Partisipasi' (status
+// sudah terkoreksi, NIP dicek ke 'Untitled' DAN 'Semua Data' gabungan).
+// Independen dari filter Area/Cabang Ranking di atas — difilter sendiri
+// lewat dropdown Segment (kolom F), dan bisa di-sort lewat klik header
+// Segment / Cabang (toggle ascending/descending).
+// =========================================================================
+
+function populateSegmentFilter(){
+  const sel = document.getElementById('segmentSelect');
+  if (!sel) return;
+  const current = sel.value;
+  const segments = new Set();
+  PEGAWAI_ROWS.forEach(r => {
+    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+    const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
+    if (segment && status === 'belum') segments.add(segment);
+  });
+  const sorted = Array.from(segments).sort((a,b) => a.localeCompare(b, 'id'));
+  sel.innerHTML = '<option value="">Semua Segment</option>' +
+    sorted.map(s => `<option value="${s.replace(/"/g,'&quot;')}">${s}</option>`).join('');
+  if (sorted.includes(current)) sel.value = current;
+}
+
+function getMissingRows(){
+  const segFilter = document.getElementById('segmentSelect') ? document.getElementById('segmentSelect').value : '';
   let rows = PEGAWAI_ROWS
     .map(r => {
+      const nip = (r[PEGAWAI_COLS.nip] || '').toString().trim();
       const nama = (r[PEGAWAI_COLS.nama] || '').toString().trim();
+      const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
+      const cabangRaw = (r[PEGAWAI_COLS.cabang] || '').toString().trim();
+      const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
       const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
-      if (!nama || status !== 'not yet') return null;
-      const u = resolvePegawaiUnit(r);
       return {
+        nip,
         nama,
-        unit: u.unit,
-        area: u.area,
-        level: u.level
+        segment,
+        cabang: (cabangRaw === '-' ? '' : cabangRaw),
+        kode: (kodeRaw === '-' ? '' : kodeRaw),
+        status
       };
     })
-    .filter(Boolean)
-    .filter(r => r.level !== 'Excluded') // cabang tanpa akses Livin' Food -> hilangkan total
-    .filter(r => {
-      switch (mode.type){
-        case 'cabang':    return r.level === 'Cabang' && r.unit === mode.cabangName; // pegawai cabang ini saja
-        case 'area':      return r.area === mode.area;          // pegawai cabang area ini + Kantor Area-nya
-        case 'region':    return r.level === 'Region';           // pegawai level Region X (Kanwil)
-        case 'noncabang': return r.level === 'Area Non Cabang';  // pegawai Kantor Area (semua area)
-        default:          return true;                           // semua (Region + Area + Cabang)
-      }
-    });
+    .filter(r => r.nama && r.status === 'belum')
+    .filter(r => !(r.kode && EXCLUDED_CABANG_KODE.has(r.kode))) // cabang tanpa akses Livin' Food -> hilangkan
+    .filter(r => !segFilter || r.segment === segFilter);
 
+  rows.sort((a,b) => {
+    const va = (a[MISSING_SORT.col] || '').toString().toLowerCase();
+    const vb = (b[MISSING_SORT.col] || '').toString().toLowerCase();
+    let cmp = va.localeCompare(vb, 'id');
+    if (cmp === 0 && MISSING_SORT.col === 'segment'){
+      cmp = (a.cabang||'').toLowerCase().localeCompare((b.cabang||'').toLowerCase(), 'id');
+    }
+    return cmp * MISSING_SORT.dir;
+  });
+  return rows;
+}
+
+function renderMissingTable(){
+  const rows = getMissingRows();
   document.getElementById('missingBadge').textContent = rows.length;
+
+  document.querySelectorAll('#missingTable th.sortable').forEach(th => {
+    const ind = th.querySelector('.sort-ind');
+    if (!ind) return;
+    ind.textContent = th.dataset.sort === MISSING_SORT.col ? (MISSING_SORT.dir === 1 ? ' ▲' : ' ▼') : '';
+  });
+
   const tbody = document.querySelector('#missingTable tbody');
   if (!rows.length){
     tbody.innerHTML = !PEGAWAI_LOADED
-      ? `<tr><td colspan="3" class="empty bad">⚠️ Data pegawai belum termuat dari backend — lihat peringatan di atas halaman, bukan berarti sudah "Done" semua.</td></tr>`
-      : `<tr><td colspan="3" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
+      ? `<tr><td colspan="4" class="empty bad">⚠️ Data pegawai belum termuat dari backend — lihat peringatan di atas halaman, bukan berarti sudah "Done" semua.</td></tr>`
+      : `<tr><td colspan="4" class="empty">Tidak ada (semua sudah "Done") ✅</td></tr>`;
   } else {
     tbody.innerHTML = rows.map(r => `
       <tr>
+        <td>${r.nip || '-'}</td>
         <td>${r.nama}</td>
-        <td>${r.unit}</td>
-        <td>${r.area || (r.level === 'Region' ? 'Region X' : '-')}</td>
+        <td>${r.segment || '-'}</td>
+        <td>${r.cabang || '-'}</td>
       </tr>
     `).join('');
   }
@@ -949,6 +1019,19 @@ document.getElementById('areaSelect').addEventListener('change', () => { updateC
 document.getElementById('cabangSelect').addEventListener('change', render);
 document.getElementById('refreshBtn').addEventListener('click', loadData);
 document.getElementById('waShareBtn').addEventListener('click', shareToWhatsapp);
+document.getElementById('segmentSelect').addEventListener('change', renderMissingTable);
+document.querySelectorAll('#missingTable th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (MISSING_SORT.col === col){
+      MISSING_SORT.dir *= -1;
+    } else {
+      MISSING_SORT.col = col;
+      MISSING_SORT.dir = 1;
+    }
+    renderMissingTable();
+  });
+});
 
 loadData();
 </script>
