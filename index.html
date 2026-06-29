@@ -609,6 +609,64 @@ function computeAreaLiveStats(area){
   return { name: area, matchedLabel: area, trx, peg, pct, notFound: peg === 0 };
 }
 
+// =========================================================================
+// VERSI BARU (sumber: sheet 'Rekap Partisipasi' / PEGAWAI_ROWS) — dipakai oleh
+// render() mulai sekarang supaya headline cards & Ranking SELALU konsisten
+// dengan kotak ringkasan di sheet 'Rekap Partisipasi' (Total Pegawai/Sudah/
+// Belum/%). Fungsi computeAreaLiveStats/findKantorAreaStats/findRowByKode di
+// atas (sumber RAW_GRID / sheet 'Rekap') tidak lagi dipanggil dari render(),
+// dibiarkan saja kalau-kalau masih dibutuhkan untuk keperluan lain/debug.
+// "Done" dihitung sebagai Transaksi (Total Submit tidak dipakai di sini,
+// supaya % match persis dengan % Partisipasi di sheet Rekap Partisipasi). ---
+function computeAreaStatsFromPegawai(area){
+  let peg = 0, done = 0;
+  PEGAWAI_ROWS.forEach(r => {
+    const info = resolvePegawaiUnit(r);
+    if (info.level === 'Excluded') return;
+    if (info.area !== area) return; // hanya level 'Cabang' & 'Area Non Cabang' yang punya .area
+    peg++;
+    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+    if (status === 'done') done++;
+  });
+  const pct = peg ? (done / peg * 100) : 0;
+  return { name: area, matchedLabel: area, trx: done, peg, pct, notFound: peg === 0 };
+}
+
+// --- stats "Kantor Area {Area} (Pegawai Non Cabang)" dari PEGAWAI_ROWS, dipakai
+//     utk view "Area Non Cabang (Semua Area)". ---
+function computeKantorAreaStatsFromPegawai(areaName){
+  let peg = 0, done = 0;
+  PEGAWAI_ROWS.forEach(r => {
+    const info = resolvePegawaiUnit(r);
+    if (info.level !== 'Area Non Cabang') return;
+    if (info.area !== areaName) return;
+    peg++;
+    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+    if (status === 'done') done++;
+  });
+  const label = 'Kantor Area ' + areaName + ' (Pegawai Non Cabang)';
+  const pct = peg ? (done / peg * 100) : 0;
+  return { name: label, trx: done, peg, pct, notFound: peg === 0 };
+}
+
+// --- stats per-Cabang dari PEGAWAI_ROWS, dicocokkan lewat Kode Cabang (bukan
+//     nama) — dipakai utk breakdown Cabang per Area & filter Cabang tunggal. ---
+function computeCabangStatsFromPegawai(kode, label){
+  const target = (kode || '').toString().trim();
+  let peg = 0, done = 0;
+  if (target){
+    PEGAWAI_ROWS.forEach(r => {
+      const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
+      if (kodeRaw !== target) return;
+      peg++;
+      const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+      if (status === 'done') done++;
+    });
+  }
+  const pct = peg ? (done / peg * 100) : 0;
+  return { name: label, trx: done, peg, pct, notFound: peg === 0 };
+}
+
 // --- breakdown per-unit Kantor Region X (Kanwil), mis. "Business Support X",
 //     "Transaction Banking Retail Region X", dst — dihitung LANGSUNG dari sheet
 //     'Data Pegawai' (group by Segment, % = jumlah status "Done" / total pegawai
@@ -698,22 +756,22 @@ function render(){
     colLabel = "Unit";
     missingMode = { type: 'region' };
   } else if (area === '__NONCABANG__'){
-    rows = AREA_ORDER.map(a => findKantorAreaStats(a));
+    rows = AREA_ORDER.map(a => computeKantorAreaStatsFromPegawai(a));
     scopeLabel = "Kantor Area Non Cabang (Semua Area)";
     colLabel = "Kantor Area";
     missingMode = { type: 'noncabang' };
   } else if (cabangKode){
-    rows = [findRowByKode(cabangKode, cabangName)];
+    rows = [computeCabangStatsFromPegawai(cabangKode, cabangName)];
     scopeLabel = cabangName + " (" + area + ")";
     colLabel = "Cabang";
     missingMode = { type: 'cabang', cabangName };
   } else if (area){
-    rows = BRANCHES.filter(b => b.area === area).map(b => findRowByKode(b.kode, b.cabang));
+    rows = BRANCHES.filter(b => b.area === area).map(b => computeCabangStatsFromPegawai(b.kode, b.cabang));
     scopeLabel = "Cabang - Area " + area;
     colLabel = "Cabang";
     missingMode = { type: 'area', area };
   } else {
-    rows = AREA_ORDER.map(a => computeAreaLiveStats(a));
+    rows = AREA_ORDER.map(a => computeAreaStatsFromPegawai(a));
     scopeLabel = "Per Area (Region X)";
     colLabel = "Area";
     missingMode = { type: 'all' };
