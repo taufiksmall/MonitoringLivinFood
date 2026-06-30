@@ -261,6 +261,12 @@
         <option value="">Semua Cabang</option>
       </select>
     </div>
+    <div class="f">
+      <label for="regionSelect">Region (Kolom E)</label>
+      <select id="regionSelect">
+        <option value="">Semua Region</option>
+      </select>
+    </div>
     <div class="f action">
       <button id="refreshBtn">Refresh Data</button>
     </div>
@@ -287,7 +293,7 @@
   </section>
 
   <section>
-    <h2>Pegawai Belum Input (Status "Belum") <span class="badge" id="missingBadge">0</span></h2>
+    <h2 id="missingTitle">Pegawai Belum Input (Status "Belum") <span class="badge" id="missingBadge">0</span></h2>
     <div class="filters" style="margin:0;border-radius:0;border:none;border-bottom:1px solid var(--border);box-shadow:none;background:#fbfdff;">
       <div class="f">
         <label for="segmentSelect">Segment</label>
@@ -311,6 +317,9 @@
       </tr></thead>
       <tbody></tbody>
     </table></div>
+    <div class="section-actions">
+      <button id="waShareMissingBtn" type="button">📤 Kirim Daftar Belum Partisipasi ke WhatsApp</button>
+    </div>
   </section>
 
   <footer>Data live dari Google Sheets (private) via Apps Script Web App. Terakhir update: <span id="lastUpdated">-</span></footer>
@@ -358,6 +367,25 @@ const EXCLUDED_CABANG_KODE = new Set([
   "18607","18609","18610","18611","18613","18651","18652","18654","18656","18658","18659","18660",
   "18661"
 ]);
+
+// --- filter "Region" (Kolom E sheet 'Rekap Partisipasi'): nilai yang muncul di data cuma
+//     2 macam — "REGION X/SULAWESI & MALUKU" utk pegawai murni Region X (Area+Cabang+Kanwil),
+//     dan "UNDER HO" utk pegawai unit fungsional yang fisik ada di Region X tapi struktural
+//     di bawah Head Office (mis. Micro Bkg X, Retail Credit Operations, Mortgage Auto Loan X,
+//     Credit Card X, dst — semuanya TIDAK pernah punya Kode Cabang / Segment "Area ..."), jadi
+//     selama ini "nyasar" tercampur ke bucket "Unit Kantor Region X (Kanwil)". Filter ini
+//     independen dari Area/Cabang, diterapkan di SEMUA fungsi compute*FromPegawai &
+//     findUnitRegionRows supaya kartu ringkasan, Ranking, tabel "Pegawai Belum Input", dan
+//     wording WhatsApp semuanya konsisten ikut filter yang sedang dipilih. ---
+function getRegionFilterValue(){
+  const el = document.getElementById('regionSelect');
+  return el ? el.value : '';
+}
+function rowMatchesRegionFilter(r){
+  const rf = getRegionFilterValue();
+  if (!rf) return true;
+  return (r[PEGAWAI_COLS.region] || '').toString().trim() === rf;
+}
 
 let RAW_GRID = [];        // grid 'Rekap'
 let PEGAWAI_HEADER = [];  // header sheet 'Rekap Partisipasi' (baris 8, dikirim backend sbg baris pertama)
@@ -444,6 +472,7 @@ function detectPegawaiColumns(){
   PEGAWAI_COLS.cabang = byHeader(/^cabang$/i) || 'Cabang';
   PEGAWAI_COLS.kodeCabang = byHeader(/kode.*cabang/i) || 'Kode Cabang';
   PEGAWAI_COLS.area = byHeader(/^area([^a-z]|$)|area\/?departemen/i) || byHeader(/area/i) || 'Area';
+  PEGAWAI_COLS.region = byHeader(/^region$/i) || 'Region';
   PEGAWAI_COLS.hp = byHeader(/hp|telepon|phone/i) || 'No. HP';
   PEGAWAI_COLS.jabatan = byHeader(/jabatan/i) || 'Jabatan';
   PEGAWAI_COLS.nip = byHeader(/nip/i) || 'NIP';
@@ -626,6 +655,7 @@ function computeAreaLiveStats(area){
 function computeAreaStatsFromPegawai(area){
   let peg = 0, done = 0;
   PEGAWAI_ROWS.forEach(r => {
+    if (!rowMatchesRegionFilter(r)) return;
     const info = resolvePegawaiUnit(r);
     if (info.level === 'Excluded') return;
     if (info.area !== area) return; // hanya level 'Cabang' & 'Area Non Cabang' yang punya .area
@@ -642,6 +672,7 @@ function computeAreaStatsFromPegawai(area){
 function computeKantorAreaStatsFromPegawai(areaName){
   let peg = 0, done = 0;
   PEGAWAI_ROWS.forEach(r => {
+    if (!rowMatchesRegionFilter(r)) return;
     const info = resolvePegawaiUnit(r);
     if (info.level !== 'Area Non Cabang') return;
     if (info.area !== areaName) return;
@@ -661,6 +692,7 @@ function computeCabangStatsFromPegawai(kode, label){
   let peg = 0, done = 0;
   if (target){
     PEGAWAI_ROWS.forEach(r => {
+      if (!rowMatchesRegionFilter(r)) return;
       const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
       if (kodeRaw !== target) return;
       peg++;
@@ -682,6 +714,7 @@ function computeCabangStatsFromPegawai(kode, label){
 function findUnitRegionRows(){
   const groups = {};
   PEGAWAI_ROWS.forEach(r => {
+    if (!rowMatchesRegionFilter(r)) return;
     const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
     if (!segment || /^area/i.test(segment)) return; // skip pegawai Area, sisanya = Kanwil
     const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
@@ -715,7 +748,34 @@ function populateFilters(){
       areaSel.appendChild(opt);
     });
   }
+  const regionSel = document.getElementById('regionSelect');
+  if (regionSel && regionSel.options.length <= 1){
+    ['REGION X/SULAWESI & MALUKU', 'UNDER HO'].forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      regionSel.appendChild(opt);
+    });
+  }
   updateCabangOptions();
+}
+
+// --- pegawai "UNDER HO" tidak pernah punya Area/Cabang (lihat komentar EXCLUDED_CABANG_KODE
+//     di atas), jadi satu-satunya tampilan yang relevan buat mereka adalah breakdown per Unit
+//     ("Region" di dropdown Area). Begitu user pilih Region = "UNDER HO", paksa dropdown Area
+//     ke opsi "Region" & kunci (disabled) supaya tidak ke-set ke Area/Cabang yang pasti kosong. ---
+function onRegionFilterChange(){
+  const region = getRegionFilterValue();
+  const areaSel = document.getElementById('areaSelect');
+  if (region === 'UNDER HO'){
+    areaSel.value = '__REGION__';
+    areaSel.disabled = true;
+  } else {
+    areaSel.disabled = false;
+  }
+  updateCabangOptions();
+  render();
+  populateSegmentFilter();
+  renderMissingTable();
 }
 
 function updateCabangOptions(){
@@ -757,7 +817,9 @@ function render(){
 
   if (area === '__REGION__'){
     rows = findUnitRegionRows();
-    scopeLabel = "Unit Kantor Region X (Kanwil)";
+    scopeLabel = getRegionFilterValue() === 'UNDER HO' ? "Unit Under HO"
+      : (getRegionFilterValue() === 'REGION X/SULAWESI & MALUKU' ? "Unit Kantor Region X (Kanwil) · Murni Region X"
+      : "Unit Kantor Region X (Kanwil) + Under HO");
     colLabel = "Unit";
     missingMode = { type: 'region' };
   } else if (area === '__NONCABANG__'){
@@ -781,6 +843,9 @@ function render(){
     colLabel = "Area";
     missingMode = { type: 'all' };
   }
+
+  const regionFilterActive = getRegionFilterValue();
+  if (regionFilterActive && area !== '__REGION__') scopeLabel += " · Region: " + regionFilterActive;
 
   rows.sort((a,b) => b.pct - a.pct);
 
@@ -825,15 +890,67 @@ function render(){
 // Segment / Cabang (toggle ascending/descending).
 // =========================================================================
 
+// --- baris PEGAWAI_ROWS yang masuk scope filter Area/Cabang/Region yang SEDANG dipilih
+//     di filter bar atas (sama persis logikanya dengan cabang Ranking di render(), supaya
+//     tabel "Pegawai Belum Input" & wording WhatsApp-nya selalu konsisten dgn apa yang
+//     sedang ditampilkan di Ranking/kartu ringkasan). status 'belum' & cabang non-akses
+//     Livin' Food (level 'Excluded') sudah dikecualikan di sini. ---
+function getMissingScopeRows(){
+  const area = document.getElementById('areaSelect').value;
+  const cabangKode = document.getElementById('cabangSelect').value;
+  return PEGAWAI_ROWS.filter(r => {
+    if (!rowMatchesRegionFilter(r)) return false;
+    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+    if (status !== 'belum') return false;
+    const info = resolvePegawaiUnit(r);
+    if (info.level === 'Excluded') return false;
+    if (area === '__REGION__') return info.level === 'Region';
+    if (area === '__NONCABANG__') return info.level === 'Area Non Cabang' && AREA_ORDER.includes(info.area);
+    if (cabangKode){
+      const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
+      const kode = (kodeRaw === '-' ? '' : kodeRaw);
+      return info.level === 'Cabang' && kode === cabangKode;
+    }
+    if (area) return info.level === 'Cabang' && info.area === area;
+    // default "Semua Area" -> sama dgn Per Area: Cabang + Area Non Cabang, area resmi (AREA_ORDER) saja
+    return (info.level === 'Cabang' || info.level === 'Area Non Cabang') && AREA_ORDER.includes(info.area);
+  });
+}
+
+// --- label scope dipakai di judul section & wording WhatsApp, mengikuti pilihan filter
+//     Area/Cabang/Region yang sama dengan getMissingScopeRows() di atas. ---
+function getMissingScopeLabel(){
+  const area = document.getElementById('areaSelect').value;
+  const cabangKode = document.getElementById('cabangSelect').value;
+  const cabangBranch = cabangKode ? BRANCHES.find(b => b.kode === cabangKode) : null;
+  const cabangName = cabangBranch ? cabangBranch.cabang : cabangKode;
+  const region = getRegionFilterValue();
+  let label;
+  if (area === '__REGION__'){
+    label = region === 'UNDER HO' ? 'Unit Under HO'
+      : (region === 'REGION X/SULAWESI & MALUKU' ? 'Unit Kantor Region X (Kanwil) · Murni Region X'
+      : 'Unit Kantor Region X (Kanwil) + Under HO');
+  } else if (area === '__NONCABANG__'){
+    label = 'Kantor Area Non Cabang (Semua Area)';
+  } else if (cabangKode){
+    label = cabangName + (area ? ' (Area ' + area + ')' : '');
+  } else if (area){
+    label = 'Area ' + area;
+  } else {
+    label = 'Semua Area (Region X)';
+  }
+  if (region && area !== '__REGION__') label += ' · Region: ' + region;
+  return label;
+}
+
 function populateSegmentFilter(){
   const sel = document.getElementById('segmentSelect');
   if (!sel) return;
   const current = sel.value;
   const segments = new Set();
-  PEGAWAI_ROWS.forEach(r => {
-    const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
+  getMissingScopeRows().forEach(r => {
     const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
-    if (segment && status === 'belum') segments.add(segment);
+    if (segment) segments.add(segment);
   });
   const sorted = Array.from(segments).sort((a,b) => a.localeCompare(b, 'id'));
   sel.innerHTML = '<option value="">Semua Segment</option>' +
@@ -843,25 +960,22 @@ function populateSegmentFilter(){
 
 function getMissingRows(){
   const segFilter = document.getElementById('segmentSelect') ? document.getElementById('segmentSelect').value : '';
-  let rows = PEGAWAI_ROWS
+  let rows = getMissingScopeRows()
     .map(r => {
+      const info = resolvePegawaiUnit(r);
       const nip = (r[PEGAWAI_COLS.nip] || '').toString().trim();
       const nama = (r[PEGAWAI_COLS.nama] || '').toString().trim();
       const segment = (r[PEGAWAI_COLS.segment] || '').toString().trim();
       const cabangRaw = (r[PEGAWAI_COLS.cabang] || '').toString().trim();
-      const kodeRaw = (r[PEGAWAI_COLS.kodeCabang] || '').toString().trim();
-      const status = (r[PEGAWAI_COLS.status] || '').toString().trim().toLowerCase();
       return {
         nip,
         nama,
         segment,
         cabang: (cabangRaw === '-' ? '' : cabangRaw),
-        kode: (kodeRaw === '-' ? '' : kodeRaw),
-        status
+        unit: info.unit || '-'
       };
     })
-    .filter(r => r.nama && r.status === 'belum')
-    .filter(r => !(r.kode && EXCLUDED_CABANG_KODE.has(r.kode))) // cabang tanpa akses Livin' Food -> hilangkan
+    .filter(r => r.nama)
     .filter(r => !segFilter || r.segment === segFilter);
 
   rows.sort((a,b) => {
@@ -879,6 +993,11 @@ function getMissingRows(){
 function renderMissingTable(){
   const rows = getMissingRows();
   document.getElementById('missingBadge').textContent = rows.length;
+
+  const titleEl = document.getElementById('missingTitle');
+  if (titleEl && titleEl.firstChild){
+    titleEl.firstChild.textContent = 'Pegawai Belum Input (Status "Belum") — ' + getMissingScopeLabel() + ' ';
+  }
 
   document.querySelectorAll('#missingTable th.sortable').forEach(th => {
     const ind = th.querySelector('.sort-ind');
@@ -935,10 +1054,12 @@ function getShareContext(){
 
   if (area === '__REGION__'){
     rows = findUnitRegionRows();
-    imageTitle = "Partisipasi Unit Region X (Kanwil)";
+    const rf = getRegionFilterValue();
+    const regionLabel = rf === 'UNDER HO' ? 'Under HO' : (rf === 'REGION X/SULAWESI & MALUKU' ? 'Kanwil Region X (Murni)' : 'Kanwil Region X + Under HO');
+    imageTitle = "Partisipasi Unit " + regionLabel;
     colLabel = "Unit";
-    introLine = "Berikut % partisipasi tiap Unit Kantor Region X (Kanwil), diurutkan dari tertinggi ke terendah :";
-    fileSlug = "partisipasi-unit-region-x";
+    introLine = "Berikut % partisipasi tiap Unit " + regionLabel + ", diurutkan dari tertinggi ke terendah :";
+    fileSlug = sanitizeFilePart("partisipasi-unit-" + regionLabel);
   } else if (area === '__NONCABANG__'){
     rows = AREA_ORDER.map(a => computeKantorAreaStatsFromPegawai(a));
     imageTitle = "Partisipasi Kantor Area Non Cabang";
@@ -1078,10 +1199,74 @@ async function shareToWhatsapp(){
   }
 }
 
-document.getElementById('areaSelect').addEventListener('change', () => { updateCabangOptions(); render(); });
-document.getElementById('cabangSelect').addEventListener('change', render);
+/* =========================================================================
+   KIRIM DAFTAR "PEGAWAI BELUM PARTISIPASI" KE WHATSAPP
+   Wording berisi nama pegawai dikelompokkan per Unit (Cabang / Kantor Area
+   Non Cabang / Unit Kanwil-Under HO, hasil resolvePegawaiUnit()), mengikuti
+   scope filter Area/Cabang/Region/Segment yang SEDANG aktif (getMissingRows()).
+========================================================================= */
+function buildMissingWaBody(rows){
+  const groups = {};
+  rows.forEach(r => {
+    const key = r.unit || 'Lainnya';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+  const unitNames = Object.keys(groups).sort((a,b) => a.localeCompare(b, 'id'));
+  return unitNames.map(u => {
+    const list = groups[u].map((r,i) => `${i+1}. ${r.nama}${r.nip ? ' - ' + r.nip : ''}`).join('\n');
+    return `📍 *${u}* (${groups[u].length} org)\n${list}`;
+  }).join('\n\n');
+}
+
+function buildMissingShareText(rows){
+  const scopeLabel = getMissingScopeLabel();
+  return 'Semangat Pagi,\n' +
+    'Yth. Bapak/Ibu\n' +
+    'Region X - Posisi ' + formatWitaTime() + ' WITA\n\n' +
+    'Berikut daftar pegawai yang BELUM melakukan partisipasi Livin\' Food — ' + scopeLabel +
+    ' (Total: ' + rows.length + ' pegawai) :\n\n' +
+    buildMissingWaBody(rows) + '\n\n' +
+    'Dimohon Bapak/Ibu yang namanya tercantum di atas agar segera melakukan pemesanan di Livin Food ' +
+    'dan menginput link pelaporan berikut :\n' +
+    'https://bit.ly/R10-LivinFood-Partisipation\n\n' +
+    'Demikian kami sampaikan, terimakasih. 🙏';
+}
+
+async function shareMissingToWhatsapp(){
+  const btn = document.getElementById('waShareMissingBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+  try{
+    const rows = getMissingRows();
+    if (!rows.length){
+      alert('Tidak ada pegawai yang belum partisipasi pada filter yang sedang dipilih 🎉');
+      return;
+    }
+    const text = buildMissingShareText(rows);
+    if (navigator.share){
+      await navigator.share({ text, title: "Daftar Belum Partisipasi Livin' Food" });
+    } else {
+      try { await navigator.clipboard.writeText(text); } catch(e){ /* clipboard API mungkin diblok, abaikan */ }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      alert('Teks wording sudah disalin ke clipboard & tab WhatsApp sudah dibuka.\nKalau daftarnya panjang dan teks di kolom chat WhatsApp terpotong, paste manual (Ctrl+V / Cmd+V) teks yang sudah disalin tadi.');
+    }
+  }catch(err){
+    console.error('Gagal membuat wording WA pegawai belum partisipasi:', err);
+    alert('Gagal membuat wording WhatsApp: ' + err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+document.getElementById('areaSelect').addEventListener('change', () => { updateCabangOptions(); render(); populateSegmentFilter(); renderMissingTable(); });
+document.getElementById('cabangSelect').addEventListener('change', () => { render(); populateSegmentFilter(); renderMissingTable(); });
+document.getElementById('regionSelect').addEventListener('change', onRegionFilterChange);
 document.getElementById('refreshBtn').addEventListener('click', loadData);
 document.getElementById('waShareBtn').addEventListener('click', shareToWhatsapp);
+document.getElementById('waShareMissingBtn').addEventListener('click', shareMissingToWhatsapp);
 document.getElementById('segmentSelect').addEventListener('change', renderMissingTable);
 document.querySelectorAll('#missingTable th.sortable').forEach(th => {
   th.addEventListener('click', () => {
